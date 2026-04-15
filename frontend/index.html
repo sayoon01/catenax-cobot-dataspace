@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Catena-X · Cobot Data Space</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <!-- React 18 CDN -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+  <!-- Babel for JSX transform -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    /* ══════════════════════════════════════════════
+       GLOBAL DESIGN TOKENS
+    ══════════════════════════════════════════════ */
+    :root {
+      --bg:        #f4f5f7;
+      --surface:   #ffffff;
+      --surface-2: #f0f2f5;
+      --surface-3: #e8eaed;
+      --border:    #dde1e8;
+      --border-s:  #eaecf1;
+      --ink:       #0f1724;
+      --ink-2:     #4b5568;
+      --ink-3:     #9aa5b4;
+      --accent:    #1d4ed8;
+      --accent-s:  #eff4ff;
+      --accent-2:  #2563eb;
+      --green:     #16a34a;
+      --green-s:   #f0fdf4;
+      --amber:     #d97706;
+      --amber-s:   #fffbeb;
+      --red:       #dc2626;
+      --red-s:     #fef2f2;
+      --purple:    #7c3aed;
+      --purple-s:  #f5f3ff;
+      --teal:      #0f766e;
+      --teal-s:    #f0fdfa;
+      --r:         10px;
+      --r-sm:      7px;
+      --sh:        0 1px 2px rgba(0,0,0,.05), 0 3px 10px rgba(0,0,0,.04);
+      --sh-md:     0 4px 6px rgba(0,0,0,.06), 0 10px 28px rgba(0,0,0,.06);
+      --f:         'Sora', sans-serif;
+      --f-kr:      'IBM Plex Sans KR', sans-serif;
+      --f-mono:    'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body { font-family: var(--f-kr); background: var(--bg); color: var(--ink); min-height: 100vh; }
+    #root { min-height: 100vh; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    button { cursor: pointer; font-family: var(--f-kr); }
+    input, select, textarea { font-family: var(--f-kr); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="src/utils/constants.js" data-presets="react"></script>
+  <script type="text/babel" src="src/utils/helpers.js" data-presets="react"></script>
+  <script type="text/babel" src="src/components/ui.js" data-presets="react"></script>
+  <script type="text/babel" src="src/components/layout.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/dashboard.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/robots.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/telemetry.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/pipeline.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/aas.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/validation.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/edc-page.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/catalog.js" data-presets="react"></script>
+  <script type="text/babel" src="src/pages/pages.js" data-presets="react"></script>
+  <script type="text/babel" src="src/app.jsx" data-presets="react"></script>
+</body>
+</html>
