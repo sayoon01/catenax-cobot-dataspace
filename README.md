@@ -144,7 +144,7 @@ export OLLAMA_TIMEOUT=120
 - [CURRENT_GAPS_AND_REFACTORING.md](/home/keti_spark1/yune/catenax_react/CURRENT_GAPS_AND_REFACTORING.md)
 - [EDC_CLI_GUIDE.md](/home/keti_spark1/yune/catenax_react/EDC_CLI_GUIDE.md)
 
-## 스크린샷
+## 이미지슬라이드
 
 <img width="438" height="229" alt="스크린샷 2026-04-15 174527" src="https://github.com/user-attachments/assets/fedcfed6-e5fb-43aa-a3cf-d949598f195a" />
 
