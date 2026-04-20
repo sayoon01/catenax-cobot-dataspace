@@ -1,0 +1,102 @@
+{
+  "robot_id": {
+    "idShort": "RobotId",
+    "semanticId": "0173-1#02-AAR196#001"
+  },
+  "line_id": {
+    "idShort": "LineId",
+    "semanticId": "0173-1#02-ABG568#001"
+  },
+  "station_id": {
+    "idShort": "StationId",
+    "semanticId": "0173-1#02-AAR501#003"
+  },
+  "cycle_time_ms": {
+    "idShort": "CycleTimeMs",
+    "semanticId": "0173-1#02-ABH990#001"
+  },
+  "power_watts": {
+    "idShort": "PowerWatts",
+    "semanticId": "0173-1#02-AAV232#002"
+  },
+  "program_name": {
+    "idShort": "ProgramName",
+    "semanticId": "0173-1#02-AAR503#001"
+  },
+  "status": {
+    "idShort": "OperationalStatus",
+    "semanticId": "0173-1#02-AAR504#001"
+  },
+  "good_parts": {
+    "idShort": "GoodParts",
+    "semanticId": "0173-1#02-AAV233#001"
+  },
+  "reject_parts": {
+    "idShort": "RejectParts",
+    "semanticId": "0173-1#02-AAV234#001"
+  },
+  "temperature_c": {
+    "idShort": "TemperatureC",
+    "semanticId": "0173-1#02-AAN457#002"
+  },
+  "vibration_mm_s": {
+    "idShort": "VibrationMmPerSec",
+    "semanticId": "0173-1#02-AAQ326#001"
+  },
+  "produced_at": {
+    "idShort": "ProducedAt",
+    "semanticId": "0173-1#02-AAQ564#001"
+  },
+  "stored_at": {
+    "idShort": "StoredAt",
+    "semanticId": "0173-1#02-AAQ565#001"
+  },
+  "pose_x": {
+    "idShort": "PoseX",
+    "semanticId": "custom:catenax:cobot:pose:x"
+  },
+  "pose_y": {
+    "idShort": "PoseY",
+    "semanticId": "custom:catenax:cobot:pose:y"
+  },
+  "pose_z": {
+    "idShort": "PoseZ",
+    "semanticId": "custom:catenax:cobot:pose:z"
+  },
+  "pose_rx": {
+    "idShort": "PoseRx",
+    "semanticId": "custom:catenax:cobot:pose:rx"
+  },
+  "pose_ry": {
+    "idShort": "PoseRy",
+    "semanticId": "custom:catenax:cobot:pose:ry"
+  },
+  "pose_rz": {
+    "idShort": "PoseRz",
+    "semanticId": "custom:catenax:cobot:pose:rz"
+  },
+  "joint_positions_deg_j1": {
+    "idShort": "JointJ1Deg",
+    "semanticId": "custom:catenax:cobot:joint:j1:deg"
+  },
+  "joint_positions_deg_j2": {
+    "idShort": "JointJ2Deg",
+    "semanticId": "custom:catenax:cobot:joint:j2:deg"
+  },
+  "joint_positions_deg_j3": {
+    "idShort": "JointJ3Deg",
+    "semanticId": "custom:catenax:cobot:joint:j3:deg"
+  },
+  "joint_positions_deg_j4": {
+    "idShort": "JointJ4Deg",
+    "semanticId": "custom:catenax:cobot:joint:j4:deg"
+  },
+  "joint_positions_deg_j5": {
+    "idShort": "JointJ5Deg",
+    "semanticId": "custom:catenax:cobot:joint:j5:deg"
+  },
+  "joint_positions_deg_j6": {
+    "idShort": "JointJ6Deg",
+    "semanticId": "custom:catenax:cobot:joint:j6:deg"
+  }
+}

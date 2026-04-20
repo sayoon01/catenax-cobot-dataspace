@@ -1,0 +1,32 @@
+{
+  "robot_id": "cobot-06",
+  "line_id": "line-b",
+  "station_id": "station-03",
+  "cycle_time_ms": 1600.3,
+  "power_watts": 350.0,
+  "program_name": "inspection-v1",
+  "status": "RUNNING",
+  "good_parts": 1320,
+  "reject_parts": 7,
+  "temperature_c": 43.3,
+  "vibration_mm_s": 2.1,
+  "pose": {
+    "x": 370.0,
+    "y": 110.0,
+    "z": 260.0,
+    "rx": 179.0,
+    "ry": -1.0,
+    "rz": 87.0
+  },
+  "joint_positions_deg": {
+    "j1": 9.5,
+    "j2": -22.0,
+    "j3": 62.0,
+    "j4": 11.0,
+    "j5": 75.0,
+    "j6": -6.0
+  },
+  "alarms": [],
+  "produced_at": "2025-01-15T08:30:12Z",
+  "stored_at": "2026-04-20T03:46:45.786319+00:00"
+}

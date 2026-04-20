@@ -4,24 +4,27 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Tuple
 
-# Catena-X / IDTA semantic IDs (representative examples)
-SEMANTIC_MAP: Dict[str, Dict[str, str]] = {
-    "robot_id": {"idShort": "RobotId", "semanticId": "0173-1#02-AAR196#001"},
-    "line_id": {"idShort": "LineId", "semanticId": "0173-1#02-ABG568#001"},
-    "station_id": {"idShort": "StationId", "semanticId": "0173-1#02-AAR501#003"},
-    "cycle_time_ms": {"idShort": "CycleTimeMs", "semanticId": "0173-1#02-ABH990#001"},
-    "power_watts": {"idShort": "PowerWatts", "semanticId": "0173-1#02-AAV232#002"},
-    "program_name": {"idShort": "ProgramName", "semanticId": "0173-1#02-AAR503#001"},
-    "status": {"idShort": "OperationalStatus", "semanticId": "0173-1#02-AAR504#001"},
-    "good_parts": {"idShort": "GoodParts", "semanticId": "0173-1#02-AAV233#001"},
-    "reject_parts": {"idShort": "RejectParts", "semanticId": "0173-1#02-AAV234#001"},
-    "temperature_c": {"idShort": "TemperatureC", "semanticId": "0173-1#02-AAN457#002"},
-    "vibration_mm_s": {"idShort": "VibrationMmPerSec", "semanticId": "0173-1#02-AAQ326#001"},
-    "produced_at": {"idShort": "ProducedAt", "semanticId": "0173-1#02-AAQ564#001"},
-    "stored_at": {"idShort": "StoredAt", "semanticId": "0173-1#02-AAQ565#001"},
-}
+DEFAULT_SEMANTIC_MAP_PATH = Path(__file__).with_name("semantic_map.json")
+
+
+def load_semantic_map(path: str | Path = DEFAULT_SEMANTIC_MAP_PATH) -> Dict[str, Dict[str, str]]:
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"Semantic map must be a JSON object: {path}")
+    return {
+        str(key): {
+            "idShort": str(value["idShort"]),
+            "semanticId": str(value["semanticId"]),
+        }
+        for key, value in raw.items()
+        if isinstance(value, dict) and "idShort" in value and "semanticId" in value
+    }
+
+
+SEMANTIC_MAP = load_semantic_map()
 
 
 def _to_camel(snake: str) -> str:
@@ -41,6 +44,9 @@ class MappedField:
 class TelemetryMapper:
     """Maps preprocessed telemetry dict into a list of AAS-ready MappedField objects."""
 
+    def __init__(self, semantic_map: Dict[str, Dict[str, str]] | None = None):
+        self.semantic_map = semantic_map or SEMANTIC_MAP
+
     @staticmethod
     def _infer_type(value: Any) -> str:
         if isinstance(value, bool):
@@ -53,37 +59,33 @@ class TelemetryMapper:
             return "string"  # serialise lists as JSON string
         return "string"
 
-    def map(self, data: Dict[str, Any]) -> List[MappedField]:
-        fields: List[MappedField] = []
+    def _iter_source_items(self, data: Dict[str, Any]) -> Iterable[Tuple[str, Any]]:
         for key, value in data.items():
             if key.startswith("_"):
-                continue  # skip internal metadata
+                continue
             if isinstance(value, dict):
-                for sub_key, sub_val in value.items():
-                    composite_key = f"{key}_{sub_key}"
-                    sem = SEMANTIC_MAP.get(composite_key, {})
-                    fields.append(
-                        MappedField(
-                            source_key=composite_key,
-                            id_short=sem.get("idShort", _to_camel(composite_key)),
-                            semantic_id=sem.get("semanticId", f"custom:catenax:{composite_key}"),
-                            value=sub_val,
-                            value_type=self._infer_type(sub_val),
-                        )
-                    )
+                yield from ((f"{key}_{sub_key}", sub_val) for sub_key, sub_val in value.items())
             else:
-                sem = SEMANTIC_MAP.get(key, {})
-                val = json.dumps(value) if isinstance(value, list) else value
-                fields.append(
-                    MappedField(
-                        source_key=key,
-                        id_short=sem.get("idShort", _to_camel(key)),
-                        semantic_id=sem.get("semanticId", f"custom:catenax:{key}"),
-                        value=val,
-                        value_type=self._infer_type(value),
-                    )
-                )
-        return fields
+                yield key, value
+
+    def _mapped_field(self, source_key: str, value: Any) -> MappedField:
+        sem = self.semantic_map.get(source_key, {})
+        return MappedField(
+            source_key=source_key,
+            id_short=sem.get("idShort", _to_camel(source_key)),
+            semantic_id=sem.get("semanticId", f"custom:catenax:{source_key}"),
+            value=json.dumps(value) if isinstance(value, list) else value,
+            value_type=self._infer_type(value),
+        )
+
+    def map(self, data: Dict[str, Any]) -> List[MappedField]:
+        return [self._mapped_field(key, value) for key, value in self._iter_source_items(data)]
 
 
-__all__ = ["SEMANTIC_MAP", "MappedField", "TelemetryMapper"]
+__all__ = [
+    "DEFAULT_SEMANTIC_MAP_PATH",
+    "SEMANTIC_MAP",
+    "MappedField",
+    "TelemetryMapper",
+    "load_semantic_map",
+]

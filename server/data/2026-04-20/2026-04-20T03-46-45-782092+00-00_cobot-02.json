@@ -1,0 +1,32 @@
+{
+  "robot_id": "cobot-02",
+  "line_id": "line-a",
+  "station_id": "station-08",
+  "cycle_time_ms": 2105.2,
+  "power_watts": 502.1,
+  "program_name": "bolt-tightening-v1",
+  "status": "RUNNING",
+  "good_parts": 1102,
+  "reject_parts": 4,
+  "temperature_c": 44.5,
+  "vibration_mm_s": 2.3,
+  "pose": {
+    "x": 398.1,
+    "y": 120.0,
+    "z": 250.3,
+    "rx": 178.0,
+    "ry": -2.0,
+    "rz": 85.0
+  },
+  "joint_positions_deg": {
+    "j1": 8.0,
+    "j2": -20.0,
+    "j3": 60.0,
+    "j4": 15.0,
+    "j5": 80.0,
+    "j6": -5.0
+  },
+  "alarms": [],
+  "produced_at": "2025-01-15T08:30:05Z",
+  "stored_at": "2026-04-20T03:46:45.782092+00:00"
+}

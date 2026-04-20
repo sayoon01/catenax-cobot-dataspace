@@ -46,6 +46,8 @@ class HttpJsonClient:
 class OllamaAASAgent:
     """AI agent backed by Ollama."""
 
+    REQUIRED_ELEMENT_KEYS = {"modelType", "idShort", "valueType", "value", "semanticId"}
+
     def __init__(
         self,
         base_url: str = "http://localhost:11434",
@@ -56,6 +58,26 @@ class OllamaAASAgent:
         self.model = model
         self.timeout = timeout
         self.client = HttpJsonClient(timeout=timeout)
+
+    def health_check(self) -> Dict[str, Any]:
+        url = f"{self.base_url}/api/tags"
+        try:
+            resp = self.client.request_json("GET", url)
+        except RuntimeError as exc:
+            return {"ok": False, "reason": str(exc), "base_url": self.base_url, "model": self.model}
+
+        models = resp.get("models", [])
+        names = {
+            str(item.get("name") or item.get("model"))
+            for item in models
+            if isinstance(item, dict)
+        }
+        return {
+            "ok": self.model in names,
+            "base_url": self.base_url,
+            "model": self.model,
+            "available_models": sorted(names),
+        }
 
     def _chat(self, system: str, user: str) -> str:
         url = f"{self.base_url}/api/chat"
@@ -72,6 +94,52 @@ class OllamaAASAgent:
         except RuntimeError as exc:
             raise OllamaAgentError(f"Ollama unreachable: {exc}") from exc
         return resp.get("message", {}).get("content", "")
+
+    @staticmethod
+    def _json_from_response(raw: str) -> Any:
+        cleaned = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
+        return json.loads(cleaned)
+
+    def chat(
+        self,
+        message: str,
+        telemetry: Optional[Mapping[str, Any]] = None,
+        validation_report: Optional[Mapping[str, Any]] = None,
+    ) -> str:
+        system = (
+            "You are a practical Catena-X, AAS, EDC, and cobot telemetry assistant. "
+            "Answer the user's question directly. If telemetry or validation context is provided, "
+            "ground the answer in that data. Do not invent values that are not present."
+        )
+        context = {
+            "telemetry": telemetry or {},
+            "validation_report": validation_report or {},
+        }
+        user = (
+            f"Question:\n{message}\n\n"
+            f"Context JSON:\n{json.dumps(context, ensure_ascii=False, indent=2)}"
+        )
+        return self._chat(system, user)
+
+    def explain_validation_report(
+        self,
+        validation_report: Mapping[str, Any],
+        telemetry: Optional[Mapping[str, Any]] = None,
+    ) -> str:
+        system = (
+            "You explain AAS validation reports for engineers. "
+            "Be concise, concrete, and action-oriented. "
+            "Summarize pass/fail, main risks, likely causes, and next fixes."
+        )
+        user = json.dumps(
+            {
+                "validation_report": validation_report,
+                "telemetry": telemetry or {},
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        return self._chat(system, user)
 
     def generate_aas_code(self, mapped_fields: List[Any]) -> str:
         fields_json = json.dumps(
@@ -107,11 +175,13 @@ class OllamaAASAgent:
             "'notes' (string)."
         )
         raw = self._chat(system, user)
-        raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
         try:
-            return json.loads(raw)
+            parsed = self._json_from_response(raw)
         except json.JSONDecodeError:
             return {"raw_inference": raw, "parse_error": True}
+        if not isinstance(parsed, dict):
+            return {"raw_inference": raw, "parse_error": True}
+        return parsed
 
     def build_submodel_elements(self, mapped_fields: List[Any], metamodel: Dict[str, Any]) -> List[Dict[str, Any]]:
         fields_summary = [
@@ -131,13 +201,45 @@ class OllamaAASAgent:
             "Add reasonable semanticId if not already present."
         )
         raw = self._chat(system, user)
-        raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
         try:
-            elements = json.loads(raw)
-            if isinstance(elements, list):
-                return elements
+            elements = self._json_from_response(raw)
+            return self._validate_submodel_elements(elements, mapped_fields)
         except json.JSONDecodeError:
             pass
+        except ValueError:
+            pass
+        return self._fallback_submodel_elements(mapped_fields)
+
+    def _validate_submodel_elements(self, elements: Any, mapped_fields: List[Any]) -> List[Dict[str, Any]]:
+        if not isinstance(elements, list):
+            raise ValueError("AAS elements response must be a JSON array")
+
+        by_id_short = {f.id_short: f for f in mapped_fields}
+        validated: List[Dict[str, Any]] = []
+        for index, element in enumerate(elements):
+            if not isinstance(element, dict):
+                raise ValueError(f"AAS element at index {index} is not an object")
+            missing = self.REQUIRED_ELEMENT_KEYS - set(element)
+            if missing:
+                raise ValueError(f"AAS element '{element.get('idShort', index)}' missing keys: {sorted(missing)}")
+            if element["modelType"] != "Property":
+                raise ValueError(f"AAS element '{element.get('idShort')}' must have modelType='Property'")
+            source = by_id_short.get(str(element["idShort"]))
+            if source and str(element["valueType"]) != source.value_type:
+                raise ValueError(f"AAS element '{element['idShort']}' valueType does not match mapper output")
+            validated.append(
+                {
+                    "modelType": "Property",
+                    "idShort": str(element["idShort"]),
+                    "valueType": str(element["valueType"]),
+                    "value": element["value"],
+                    "semanticId": str(element["semanticId"]),
+                }
+            )
+        return validated
+
+    @staticmethod
+    def _fallback_submodel_elements(mapped_fields: List[Any]) -> List[Dict[str, Any]]:
         return [
             {
                 "modelType": "Property",
@@ -149,4 +251,3 @@ class OllamaAASAgent:
             for f in mapped_fields
             if f.value is not None
         ]
-

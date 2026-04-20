@@ -27,14 +27,15 @@
     body { font-family: var(--ui); background: var(--bg); color: var(--text); }
     .page { max-width: 1500px; margin: 0 auto; padding: 0 20px 32px; }
     header {
-      position: sticky; top: 0; z-index: 10;
+      position: sticky; top: 0; z-index: 50;
       display: flex; justify-content: space-between; align-items: center;
       background: rgba(255, 255, 255, 0.92);
       border-bottom: 1px solid var(--border);
       backdrop-filter: blur(8px);
       margin: 0 -20px 22px; padding: 14px 20px;
     }
-    .logo { display: flex; gap: 10px; align-items: center; }
+    .logo { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; }
+    .logo-text { min-width: 0; }
     .logo-mark {
       width: 28px; height: 28px; border-radius: 8px;
       background: linear-gradient(135deg, #45a1ff, #1570ef);
@@ -52,6 +53,63 @@
       font-family: var(--mono);
       font-size: 11px;
       cursor: pointer;
+    }
+    .nav-toggle {
+      flex-shrink: 0;
+      margin-left: 8px;
+      width: 38px; height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      color: var(--accent);
+    }
+    .nav-toggle:hover { background: var(--surface-2); }
+    .nav-toggle span {
+      display: block; width: 16px; height: 2px; background: currentColor; border-radius: 1px;
+    }
+    .nav-backdrop {
+      position: fixed; inset: 0; background: rgba(16, 35, 61, 0.25); z-index: 100;
+      opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    }
+    .nav-backdrop.is-open { opacity: 1; pointer-events: auto; }
+    .nav-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: min(300px, 92vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      box-shadow: -8px 0 32px rgba(16, 35, 61, 0.12);
+      z-index: 101;
+      transform: translateX(100%); transition: transform .22s ease;
+      display: flex; flex-direction: column;
+      padding: 18px 16px;
+    }
+    .nav-drawer.is-open { transform: translateX(0); }
+    .nav-drawer-head {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    }
+    .nav-drawer-item {
+      width: 100%; text-align: left;
+      border: 1px solid transparent; background: transparent;
+      border-radius: 10px; padding: 12px 12px;
+      font-family: var(--ui); font-size: 14px; color: var(--text);
+      cursor: pointer; margin-bottom: 4px;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    }
+    .nav-drawer-item:hover { background: var(--surface-2); border-color: #e7edf6; }
+    .nav-drawer-item.is-active { background: #eef5ff; border-color: #c9daf8; color: var(--accent); font-weight: 600; }
+    .nav-drawer-desc { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 400; }
+    .app-view.is-hidden { display: none !important; }
+    .alt-screen {
+      max-width: 720px; margin: 0 auto;
+      padding: 8px 0 40px;
+    }
+    .alt-screen h1 { font-size: 20px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+    .alt-screen p { font-size: 13px; color: #4a5d78; line-height: 1.55; margin-bottom: 14px; }
+    .alt-screen .note {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px;
     }
 
     .kpis {
@@ -174,17 +232,21 @@
     <header>
       <div class="logo">
         <div class="logo-mark"></div>
-        <div>
+        <div class="logo-text">
           <div class="logo-title">CATENA-X</div>
-          <div class="logo-sub">코봇 텔레메트리 대시보드</div>
+          <div class="logo-sub" id="header-subtitle">코봇 텔레메트리 대시보드</div>
         </div>
+        <button type="button" class="nav-toggle" id="nav-toggle" aria-label="메뉴 열기" aria-expanded="false" aria-controls="nav-drawer">
+          <span></span><span></span><span></span>
+        </button>
       </div>
       <div class="head-right">
         <div class="last-update" id="last-update">업데이트 --:--:--</div>
-        <button class="btn" id="refresh-btn">새로고침</button>
+        <button type="button" class="btn" id="refresh-btn">새로고침</button>
       </div>
     </header>
 
+    <div id="view-dashboard" class="app-view">
     <div class="error" id="error-box"></div>
 
     <div class="kpis">
@@ -220,7 +282,43 @@
       <div class="card chart-card"><div class="chart-title">라인별 평균 사이클 (ms)</div><div class="chart-subtitle">라인 병목 구간 확인</div><div class="chart-wrap"><canvas id="c-line-cycle"></canvas></div></div>
       <div class="card chart-card"><div class="chart-title">온도-진동 상관</div><div class="chart-subtitle">이상징후 탐지용 분포</div><div class="chart-wrap"><canvas id="c-temp-vibe"></canvas></div></div>
     </div>
+    </div>
+
+    <div id="view-ai" class="app-view is-hidden">
+      <div class="alt-screen">
+        <button type="button" class="btn" id="back-from-ai" style="margin-bottom:16px">← 운영 대시보드</button>
+        <h1>AI 어시스턴트</h1>
+        <p>Ollama(Qwen 등)로 텔레메트리·검증 리포트에 대한 질의응답과 자연어 요약을 붙일 화면입니다. 백엔드에 프록시 API를 두면 여기서 채팅 UI를 채울 수 있습니다.</p>
+        <div class="note">현재는 레이아웃만 분리된 상태입니다. <code>apps/ai_agent.py</code>의 <code>chat</code>, <code>explain_validation_report</code> 연동 예정.</div>
+      </div>
+    </div>
+
+    <div id="view-edc" class="app-view is-hidden">
+      <div class="alt-screen">
+        <button type="button" class="btn" id="back-from-edc" style="margin-bottom:16px">← 운영 대시보드</button>
+        <h1>EDC · 파이프라인</h1>
+        <p>자산 등록, AAS 동기화, AI 매핑 등은 CLI에서 실행합니다. 이 화면에는 운영자용 요약·링크만 두고, 상세는 저장소 문서를 보는 흐름을 권장합니다.</p>
+        <div class="note">예: <code>python3 -m apps.edc pipeline --telemetry …</code> · 저장소 <code>apps/PIPELINE.md</code></div>
+      </div>
+    </div>
   </div>
+
+  <div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
+  <aside id="nav-drawer" class="nav-drawer" role="dialog" aria-modal="true" aria-labelledby="nav-drawer-title">
+    <div class="nav-drawer-head" id="nav-drawer-title">화면 전환</div>
+    <button type="button" class="nav-drawer-item is-active" data-view="dashboard" id="nav-item-dashboard">
+      운영 대시보드
+      <div class="nav-drawer-desc">KPI · 로봇 카드 · 차트</div>
+    </button>
+    <button type="button" class="nav-drawer-item" data-view="ai" id="nav-item-ai">
+      AI 어시스턴트
+      <div class="nav-drawer-desc">질의응답 · 검증 설명 (준비)</div>
+    </button>
+    <button type="button" class="nav-drawer-item" data-view="edc" id="nav-item-edc">
+      EDC · 파이프라인
+      <div class="nav-drawer-desc">CLI 안내</div>
+    </button>
+  </aside>
 
   <script>
     const API_BASE = "http://localhost:8080";
@@ -257,6 +355,67 @@
     const THRESHOLD_REJECT_PCT = 2;
 
     let _cachedNormalized = [];
+
+    const VIEW_META = {
+      dashboard: { elId: "view-dashboard", subtitle: "코봇 텔레메트리 대시보드" },
+      ai: { elId: "view-ai", subtitle: "AI 어시스턴트" },
+      edc: { elId: "view-edc", subtitle: "EDC · 파이프라인" },
+    };
+    let currentView = "dashboard";
+
+    function setDrawerOpen(open) {
+      const backdrop = document.getElementById("nav-backdrop");
+      const drawer = document.getElementById("nav-drawer");
+      const toggle = document.getElementById("nav-toggle");
+      backdrop.classList.toggle("is-open", open);
+      drawer.classList.toggle("is-open", open);
+      backdrop.setAttribute("aria-hidden", open ? "false" : "true");
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      document.body.style.overflow = open ? "hidden" : "";
+    }
+
+    function setView(viewId) {
+      if (!VIEW_META[viewId]) return;
+      currentView = viewId;
+      for (const [id, meta] of Object.entries(VIEW_META)) {
+        const el = document.getElementById(meta.elId);
+        if (el) el.classList.toggle("is-hidden", id !== viewId);
+      }
+      const sub = document.getElementById("header-subtitle");
+      if (sub) sub.textContent = VIEW_META[viewId].subtitle;
+      document.querySelectorAll(".nav-drawer-item").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.view === viewId);
+      });
+      const dash = viewId === "dashboard";
+      const ru = document.getElementById("refresh-btn");
+      const lu = document.getElementById("last-update");
+      if (ru) ru.style.display = dash ? "" : "none";
+      if (lu) lu.style.display = dash ? "" : "none";
+      if (dash) {
+        requestAnimationFrame(() => {
+          Object.values(charts).forEach((c) => {
+            try {
+              c.resize();
+            } catch (_) {}
+          });
+        });
+      }
+      setDrawerOpen(false);
+    }
+
+    document.getElementById("nav-toggle").addEventListener("click", () => {
+      const drawer = document.getElementById("nav-drawer");
+      setDrawerOpen(!drawer.classList.contains("is-open"));
+    });
+    document.getElementById("nav-backdrop").addEventListener("click", () => setDrawerOpen(false));
+    document.querySelectorAll(".nav-drawer-item").forEach((btn) => {
+      btn.addEventListener("click", () => setView(btn.dataset.view));
+    });
+    document.getElementById("back-from-ai").addEventListener("click", () => setView("dashboard"));
+    document.getElementById("back-from-edc").addEventListener("click", () => setView("dashboard"));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    });
 
     document.getElementById("refresh-btn").addEventListener("click", loadData);
     document.getElementById("filter-line").addEventListener("change", () => renderFromCache());

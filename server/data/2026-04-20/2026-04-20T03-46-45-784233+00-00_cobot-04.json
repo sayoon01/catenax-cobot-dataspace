@@ -1,0 +1,32 @@
+{
+  "robot_id": "cobot-04",
+  "line_id": "line-b",
+  "station_id": "station-01",
+  "cycle_time_ms": 1675.0,
+  "power_watts": 390.0,
+  "program_name": "pick-place-v3",
+  "status": "RUNNING",
+  "good_parts": 1500,
+  "reject_parts": 3,
+  "temperature_c": 41.2,
+  "vibration_mm_s": 1.5,
+  "pose": {
+    "x": 350.0,
+    "y": 95.0,
+    "z": 240.0,
+    "rx": 180.0,
+    "ry": 0.0,
+    "rz": 88.0
+  },
+  "joint_positions_deg": {
+    "j1": 12.0,
+    "j2": -18.0,
+    "j3": 58.0,
+    "j4": 10.0,
+    "j5": 70.0,
+    "j6": -8.0
+  },
+  "alarms": [],
+  "produced_at": "2025-01-15T08:30:07Z",
+  "stored_at": "2026-04-20T03:46:45.784233+00:00"
+}

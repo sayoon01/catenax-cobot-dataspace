@@ -94,22 +94,9 @@ class HttpJsonClient:
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1.  Preprocessor  (rule-based cleaning)
-# ══════════════════════════════════════════════════════════════════════════════
-
-
-
-# ══════════════════════════════════════════════════════════════════════════════
 # 2.  Mapper  → apps/aas_mapper.py  (SEMANTIC_MAP, MappedField, TelemetryMapper)
-# ══════════════════════════════════════════════════════════════════════════════
-
-
-# ══════════════════════════════════════════════════════════════════════════════
 # 3.  AI Agent  (Ollama qwen3:27b)
-# ══════════════════════════════════════════════════════════════════════════════
-
-
-
-# ══════════════════════════════════════════════════════════════════════════════
+#====================================================
 # 4.  Validator  (three-layer validation)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -761,7 +748,9 @@ class CobotEDCPipeline:
         if not self.aas_bridge:
             raise RuntimeError("AAS bridge is not configured")
         if not isinstance(telemetry, FactoryCobotTelemetry):
-            telemetry = FactoryCobotTelemetry.from_dict(telemetry)
+            telemetry = FactoryCobotTelemetry.from_dict(
+                self.preprocessor.preprocess(telemetry).cleaned
+            )
         return self.aas_bridge.upsert_telemetry(telemetry)
 
 

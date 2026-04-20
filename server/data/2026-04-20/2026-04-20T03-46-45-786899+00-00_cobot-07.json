@@ -1,0 +1,32 @@
+{
+  "robot_id": "cobot-07",
+  "line_id": "line-c",
+  "station_id": "station-04",
+  "cycle_time_ms": 1400.0,
+  "power_watts": 300.2,
+  "program_name": "glue-v2",
+  "status": "RUNNING",
+  "good_parts": 1450,
+  "reject_parts": 2,
+  "temperature_c": 40.0,
+  "vibration_mm_s": 1.2,
+  "pose": {
+    "x": 360.0,
+    "y": 100.0,
+    "z": 230.0,
+    "rx": 180.0,
+    "ry": 0.5,
+    "rz": 89.0
+  },
+  "joint_positions_deg": {
+    "j1": 11.0,
+    "j2": -15.0,
+    "j3": 55.0,
+    "j4": 8.0,
+    "j5": 65.0,
+    "j6": -4.0
+  },
+  "alarms": [],
+  "produced_at": "2025-01-15T08:30:14Z",
+  "stored_at": "2026-04-20T03:46:45.786899+00:00"
+}

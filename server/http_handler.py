@@ -15,12 +15,19 @@ HTTP 라우팅/요청응답 처리 (TelemetryHandler)
 from __future__ import annotations
 
 import json
+import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
+from pathlib import Path
 from typing import Any, Dict
 from urllib.parse import parse_qs, urlparse
 
-from settings import LOGGER
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from apps.ai_agent import OllamaAASAgent, OllamaAgentError
+from settings import LOGGER, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
 from telemetry_store import (
     kpi_summary,
     parse_iso_datetime,
@@ -32,6 +39,14 @@ from telemetry_store import (
     utc_now,
     validate_telemetry,
 )
+
+
+def build_ai_agent() -> OllamaAASAgent:
+    return OllamaAASAgent(
+        base_url=OLLAMA_BASE_URL,
+        model=OLLAMA_MODEL,
+        timeout=OLLAMA_TIMEOUT,
+    )
 
 
 class TelemetryHandler(BaseHTTPRequestHandler):
@@ -144,10 +159,18 @@ class TelemetryHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if parsed.path == "/api/v1/ai/health":
+            self._send_json(HTTPStatus.OK, build_ai_agent().health_check())
+            return
+
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/ai/chat":
+            self._handle_ai_chat()
+            return
+
         if parsed.path != "/api/v1/cobot/telemetry":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
             return
@@ -168,6 +191,59 @@ class TelemetryHandler(BaseHTTPRequestHandler):
 
         result = store_telemetry(payload)
         self._send_json(HTTPStatus.CREATED, result)
+
+    def _handle_ai_chat(self) -> None:
+        try:
+            payload = self._read_json()
+        except ValueError as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        except json.JSONDecodeError as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": f"Invalid JSON: {exc.msg}"})
+            return
+
+        message = str(payload.get("message", "")).strip()
+        mode = str(payload.get("mode", "chat")).strip().lower()
+        if not message and mode == "chat":
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "'message' is required"})
+            return
+
+        telemetry = payload.get("telemetry")
+        if telemetry is None and payload.get("include_latest"):
+            telemetry = read_latest()
+        if telemetry is not None and not isinstance(telemetry, dict):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "'telemetry' must be an object when provided"})
+            return
+
+        validation_report = payload.get("validation_report")
+        if validation_report is not None and not isinstance(validation_report, dict):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "'validation_report' must be an object when provided"})
+            return
+
+        agent = build_ai_agent()
+        try:
+            if mode == "explain_validation":
+                if validation_report is None:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "'validation_report' is required"})
+                    return
+                answer = agent.explain_validation_report(validation_report, telemetry)
+            elif mode == "chat":
+                answer = agent.chat(message, telemetry, validation_report)
+            else:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Unsupported mode; use 'chat' or 'explain_validation'"})
+                return
+        except OllamaAgentError as exc:
+            self._send_json(HTTPStatus.BAD_GATEWAY, {"error": str(exc)})
+            return
+
+        self._send_json(
+            HTTPStatus.OK,
+            {
+                "mode": mode,
+                "model": OLLAMA_MODEL,
+                "answer": answer,
+            },
+        )
 
     def log_message(self, format: str, *args: Any) -> None:
         LOGGER.info("%s - %s", self.address_string(), format % args)
