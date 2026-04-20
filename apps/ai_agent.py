@@ -1,9 +1,27 @@
+"""
+AI Agent 기능
+- OLLAMA_* 환경변수로 Ollama 기반 AI Agent를 구성합니다.
+- health/chat/streaming chat과 검증 결과 설명을 담당합니다.
+- AAS metamodel 추론, submodel element 생성, AAS 코드 생성을 보조합니다.
+"""
+
 from __future__ import annotations
 
 import json
+import os
 import re
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Protocol
 from urllib import error, request
+
+
+DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+DEFAULT_OLLAMA_MODEL = "qwen3:14b"
+DEFAULT_OLLAMA_TIMEOUT = 120.0
+
+
+class LoggerLike(Protocol):
+    def warning(self, msg: str, *args: Any) -> None:
+        ...
 
 
 class OllamaAgentError(RuntimeError):
@@ -39,8 +57,49 @@ class HttpJsonClient:
             raise RuntimeError(f"HTTP {exc.code} → {url}: {detail}") from exc
         except error.URLError as exc:
             raise RuntimeError(f"Cannot reach {url}: {exc.reason}") from exc
+        except TimeoutError as exc:
+            raise RuntimeError(f"Timed out after {self.timeout:g}s → {url}") from exc
+        except OSError as exc:
+            raise RuntimeError(f"Connection error → {url}: {exc}") from exc
 
         return json.loads(raw) if raw else {}
+
+    def request_json_stream_lines(
+        self,
+        method: str,
+        url: str,
+        payload: Optional[Mapping[str, Any]] = None,
+        headers: Optional[Mapping[str, str]] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        body: Optional[bytes] = None
+        hdrs: Dict[str, str] = {"Content-Type": "application/json"}
+        if headers:
+            hdrs.update(headers)
+        if payload is not None:
+            body = json.dumps(payload).encode("utf-8")
+
+        req = request.Request(url, data=body, headers=hdrs, method=method)
+        try:
+            with request.urlopen(req, timeout=self.timeout) as resp:
+                for raw_line in resp:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line:
+                        continue
+                    try:
+                        parsed = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(parsed, dict):
+                        yield parsed
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"HTTP {exc.code} → {url}: {detail}") from exc
+        except error.URLError as exc:
+            raise RuntimeError(f"Cannot reach {url}: {exc.reason}") from exc
+        except TimeoutError as exc:
+            raise RuntimeError(f"Timed out after {self.timeout:g}s → {url}") from exc
+        except OSError as exc:
+            raise RuntimeError(f"Connection error → {url}: {exc}") from exc
 
 
 class OllamaAASAgent:
@@ -50,9 +109,9 @@ class OllamaAASAgent:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:11434",
-        model: str = "qwen3:27b",
-        timeout: float = 120.0,
+        base_url: str = DEFAULT_OLLAMA_BASE_URL,
+        model: str = DEFAULT_OLLAMA_MODEL,
+        timeout: float = DEFAULT_OLLAMA_TIMEOUT,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -95,6 +154,28 @@ class OllamaAASAgent:
             raise OllamaAgentError(f"Ollama unreachable: {exc}") from exc
         return resp.get("message", {}).get("content", "")
 
+    def _chat_stream(self, system: str, user: str) -> Iterator[str]:
+        url = f"{self.base_url}/api/chat"
+        payload = {
+            "model": self.model,
+            "stream": True,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        try:
+            for chunk in self.client.request_json_stream_lines("POST", url, payload=payload):
+                message = chunk.get("message")
+                if isinstance(message, dict):
+                    text = message.get("content")
+                    if text:
+                        yield str(text)
+                if chunk.get("done"):
+                    break
+        except RuntimeError as exc:
+            raise OllamaAgentError(f"Ollama unreachable: {exc}") from exc
+
     @staticmethod
     def _json_from_response(raw: str) -> Any:
         cleaned = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
@@ -121,6 +202,27 @@ class OllamaAASAgent:
         )
         return self._chat(system, user)
 
+    def chat_stream(
+        self,
+        message: str,
+        telemetry: Optional[Mapping[str, Any]] = None,
+        validation_report: Optional[Mapping[str, Any]] = None,
+    ) -> Iterator[str]:
+        system = (
+            "You are a practical Catena-X, AAS, EDC, and cobot telemetry assistant. "
+            "Answer the user's question directly. If telemetry or validation context is provided, "
+            "ground the answer in that data. Do not invent values that are not present."
+        )
+        context = {
+            "telemetry": telemetry or {},
+            "validation_report": validation_report or {},
+        }
+        user = (
+            f"Question:\n{message}\n\n"
+            f"Context JSON:\n{json.dumps(context, ensure_ascii=False, indent=2)}"
+        )
+        yield from self._chat_stream(system, user)
+
     def explain_validation_report(
         self,
         validation_report: Mapping[str, Any],
@@ -140,6 +242,26 @@ class OllamaAASAgent:
             indent=2,
         )
         return self._chat(system, user)
+
+    def explain_validation_report_stream(
+        self,
+        validation_report: Mapping[str, Any],
+        telemetry: Optional[Mapping[str, Any]] = None,
+    ) -> Iterator[str]:
+        system = (
+            "You explain AAS validation reports for engineers. "
+            "Be concise, concrete, and action-oriented. "
+            "Summarize pass/fail, main risks, likely causes, and next fixes."
+        )
+        user = json.dumps(
+            {
+                "validation_report": validation_report,
+                "telemetry": telemetry or {},
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        yield from self._chat_stream(system, user)
 
     def generate_aas_code(self, mapped_fields: List[Any]) -> str:
         fields_json = json.dumps(
@@ -251,3 +373,30 @@ class OllamaAASAgent:
             for f in mapped_fields
             if f.value is not None
         ]
+
+
+def build_ai_agent_from_env(
+    logger: Optional[LoggerLike] = None,
+    default_base_url: str = DEFAULT_OLLAMA_BASE_URL,
+    default_model: str = DEFAULT_OLLAMA_MODEL,
+    default_timeout: float = DEFAULT_OLLAMA_TIMEOUT,
+) -> OllamaAASAgent:
+    ollama_url = os.environ.get("OLLAMA_BASE_URL", default_base_url)
+    ollama_model = os.environ.get("OLLAMA_MODEL", default_model)
+    ollama_timeout_raw = os.environ.get("OLLAMA_TIMEOUT", str(default_timeout))
+    try:
+        ollama_timeout = float(ollama_timeout_raw)
+    except ValueError:
+        if logger:
+            logger.warning(
+                "Invalid OLLAMA_TIMEOUT=%r; using default %s seconds",
+                ollama_timeout_raw,
+                default_timeout,
+            )
+        ollama_timeout = default_timeout
+
+    return OllamaAASAgent(
+        base_url=ollama_url,
+        model=ollama_model,
+        timeout=ollama_timeout,
+    )

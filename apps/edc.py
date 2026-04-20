@@ -6,7 +6,7 @@ Full pipeline
   Raw telemetry JSON
        ↓  [1] Preprocessor   – rule-based cleaning & field normalisation
        ↓  [2] Mapper          – maps fields to AAS idShort / semanticId
-       ↓  [3] AI Agent        – uses Ollama qwen3:27b for
+      ↓  [3] AI Agent        – uses Ollama qwen3:14b for
                                  • code generation (AAS builder snippets)
                                  • meta-model inference
                                  • AAS submodel construction
@@ -23,7 +23,7 @@ Environment variables expected
   CATENAX_EDC_API_KEY          (optional)
   CATENAX_AAS_API_KEY          (optional)
   OLLAMA_BASE_URL              default: http://localhost:11434
-  OLLAMA_MODEL                 default: qwen3:27b
+  OLLAMA_MODEL                 default: qwen3:14b
   OLLAMA_TIMEOUT               default: 120 (seconds)
 """
 
@@ -41,11 +41,11 @@ from urllib import error, request
 
 try:
     from apps.aas_mapper import TelemetryMapper
-    from apps.ai_agent import OllamaAASAgent, OllamaAgentError
+    from apps.ai_agent import OllamaAASAgent, OllamaAgentError, build_ai_agent_from_env
     from apps.preprocessor import TelemetryPreprocessor
 except ModuleNotFoundError:
     from aas_mapper import TelemetryMapper
-    from ai_agent import OllamaAASAgent, OllamaAgentError
+    from ai_agent import OllamaAASAgent, OllamaAgentError, build_ai_agent_from_env
     from preprocessor import TelemetryPreprocessor
 
 
@@ -95,7 +95,7 @@ class HttpJsonClient:
 # ══════════════════════════════════════════════════════════════════════════════
 # 1.  Preprocessor  (rule-based cleaning)
 # 2.  Mapper  → apps/aas_mapper.py  (SEMANTIC_MAP, MappedField, TelemetryMapper)
-# 3.  AI Agent  (Ollama qwen3:27b)
+# 3.  AI Agent  (Ollama qwen3:14b)
 #====================================================
 # 4.  Validator  (three-layer validation)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -771,28 +771,11 @@ def build_connector_from_env() -> EDCConnectorService:
     return EDCConnectorService(management_url=management_url, api_key=edc_api_key)
 
 
-def build_ai_agent_from_env() -> OllamaAASAgent:
-    ollama_url   = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-    ollama_model = os.environ.get("OLLAMA_MODEL", "qwen3:27b")
-    ollama_timeout_raw = os.environ.get("OLLAMA_TIMEOUT", "120")
-    try:
-        ollama_timeout = float(ollama_timeout_raw)
-    except ValueError:
-        LOGGER.warning("Invalid OLLAMA_TIMEOUT=%r; using default 120 seconds", ollama_timeout_raw)
-        ollama_timeout = 120.0
-
-    return OllamaAASAgent(
-        base_url=ollama_url,
-        model=ollama_model,
-        timeout=ollama_timeout,
-    )
-
-
 def build_pipeline_from_env(include_ai: bool = True) -> CobotEDCPipeline:
     return CobotEDCPipeline(
         connector=build_connector_from_env(),
         aas_bridge=build_aas_bridge_from_env(),
-        ai_agent=build_ai_agent_from_env() if include_ai else None,
+        ai_agent=build_ai_agent_from_env(LOGGER) if include_ai else None,
     )
 
 

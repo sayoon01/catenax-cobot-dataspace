@@ -111,6 +111,112 @@
       font-family: var(--mono); font-size: 11px; color: var(--muted);
       background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px;
     }
+    .ai-chat-shell {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .ai-chat-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .ai-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .ai-mode-select {
+      min-width: 132px;
+      padding: 7px 9px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--ui);
+      font-size: 12px;
+    }
+    .ai-status-ok { color: var(--green); }
+    .ai-status-fail { color: var(--red); }
+    .ai-chat-log {
+      height: 320px;
+      overflow-y: auto;
+      padding: 12px;
+      background: #fbfdff;
+    }
+    .ai-msg {
+      max-width: 92%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .ai-msg.user {
+      margin-left: auto;
+      background: #eef5ff;
+      border-color: #c9daf8;
+    }
+    .ai-msg.assistant {
+      margin-right: auto;
+      background: #ffffff;
+    }
+    .ai-msg.meta {
+      margin: 8px auto;
+      background: #fff8eb;
+      border-color: #f8dca8;
+      color: #7a5a16;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .ai-chat-form {
+      padding: 10px 12px 12px;
+      border-top: 1px solid var(--border);
+      background: #fff;
+    }
+    .ai-chat-input {
+      width: 100%;
+      min-height: 88px;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-family: var(--ui);
+      font-size: 13px;
+      color: var(--text);
+      background: #fff;
+      margin-bottom: 10px;
+    }
+    .ai-json-input {
+      min-height: 112px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .ai-json-input.is-hidden { display: none; }
+    .ai-chat-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .ai-chat-help {
+      color: var(--muted);
+      font-size: 11px;
+      font-family: var(--mono);
+    }
 
     .kpis {
       display: grid;
@@ -288,8 +394,44 @@
       <div class="alt-screen">
         <button type="button" class="btn" id="back-from-ai" style="margin-bottom:16px">← 운영 대시보드</button>
         <h1>AI 어시스턴트</h1>
-        <p>Ollama(Qwen 등)로 텔레메트리·검증 리포트에 대한 질의응답과 자연어 요약을 붙일 화면입니다. 백엔드에 프록시 API를 두면 여기서 채팅 UI를 채울 수 있습니다.</p>
-        <div class="note">현재는 레이아웃만 분리된 상태입니다. <code>apps/ai_agent.py</code>의 <code>chat</code>, <code>explain_validation_report</code> 연동 예정.</div>
+        <p>최근 코봇 상태를 바탕으로 이상 징후, 위험 원인, 조치 우선순위를 자연어로 확인합니다.</p>
+        <div class="note">상태 확인으로 AI 연결 여부를 확인할 수 있습니다. 최근 상태를 반영하면 답변이 현재 대시보드 데이터에 맞춰집니다.</div>
+        <div class="ai-chat-shell">
+          <div class="ai-chat-toolbar">
+            <label class="ai-inline">
+              질문 종류
+              <select id="ai-mode" class="ai-mode-select">
+                <option value="chat">운영 질문</option>
+                <option value="explain_validation">검증 결과 해석</option>
+              </select>
+            </label>
+            <label class="ai-inline">
+              <input type="checkbox" id="ai-include-latest" checked />
+              최근 상태 반영
+            </label>
+            <div class="ai-inline">
+              <span id="ai-health-text">AI 상태 확인 전</span>
+              <button type="button" class="btn" id="ai-health-btn">상태 확인</button>
+            </div>
+          </div>
+          <div id="ai-chat-log" class="ai-chat-log"></div>
+          <form id="ai-chat-form" class="ai-chat-form">
+            <textarea
+              id="ai-chat-input"
+              class="ai-chat-input"
+              placeholder="예) 지금 가장 먼저 확인해야 할 로봇과 이유를 알려줘"
+            ></textarea>
+            <textarea
+              id="ai-validation-input"
+              class="ai-chat-input ai-json-input is-hidden"
+              placeholder='검증 결과 JSON을 붙여넣으세요'
+            ></textarea>
+            <div class="ai-chat-actions">
+              <div class="ai-chat-help">Enter 전송 · Shift+Enter 줄바꿈</div>
+              <button type="submit" class="btn" id="ai-send-btn">보내기</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -312,7 +454,7 @@
     </button>
     <button type="button" class="nav-drawer-item" data-view="ai" id="nav-item-ai">
       AI 어시스턴트
-      <div class="nav-drawer-desc">질의응답 · 검증 설명 (준비)</div>
+      <div class="nav-drawer-desc">질의응답 · 검증 설명</div>
     </button>
     <button type="button" class="nav-drawer-item" data-view="edc" id="nav-item-edc">
       EDC · 파이프라인
@@ -355,6 +497,9 @@
     const THRESHOLD_REJECT_PCT = 2;
 
     let _cachedNormalized = [];
+    let aiBusy = false;
+    const AI_HISTORY_STORAGE_KEY = "catenax.ai.chatHistory.v1";
+    const aiMessages = loadAiMessages();
 
     const VIEW_META = {
       dashboard: { elId: "view-dashboard", subtitle: "코봇 텔레메트리 대시보드" },
@@ -399,6 +544,8 @@
             } catch (_) {}
           });
         });
+      } else if (viewId === "ai") {
+        renderAiMessages();
       }
       setDrawerOpen(false);
     }
@@ -415,6 +562,15 @@
     document.getElementById("back-from-edc").addEventListener("click", () => setView("dashboard"));
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") setDrawerOpen(false);
+    });
+    document.getElementById("ai-health-btn").addEventListener("click", checkAiHealth);
+    document.getElementById("ai-chat-form").addEventListener("submit", onSubmitAiChat);
+    document.getElementById("ai-mode").addEventListener("change", syncAiMode);
+    document.getElementById("ai-chat-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSubmitAiChat(e);
+      }
     });
 
     document.getElementById("refresh-btn").addEventListener("click", loadData);
@@ -549,6 +705,210 @@
       const box = document.getElementById("error-box");
       box.style.display = "none";
       box.textContent = "";
+    }
+
+    function setAiBusy(busy) {
+      aiBusy = busy;
+      const sendBtn = document.getElementById("ai-send-btn");
+      const healthBtn = document.getElementById("ai-health-btn");
+      if (sendBtn) {
+        sendBtn.disabled = busy;
+        sendBtn.textContent = busy ? "응답 대기 중..." : "보내기";
+      }
+      if (healthBtn) healthBtn.disabled = busy;
+    }
+
+    function syncAiMode() {
+      const mode = document.getElementById("ai-mode")?.value || "chat";
+      const input = document.getElementById("ai-chat-input");
+      const validationInput = document.getElementById("ai-validation-input");
+      const help = document.querySelector(".ai-chat-help");
+      if (input) {
+        input.placeholder = mode === "explain_validation"
+          ? "예) 이 검증 결과에서 가장 먼저 조치할 항목을 알려줘"
+          : "예) 지금 가장 먼저 확인해야 할 로봇과 이유를 알려줘";
+      }
+      if (validationInput) {
+        validationInput.classList.toggle("is-hidden", mode !== "explain_validation");
+      }
+      if (help) {
+        help.textContent = mode === "explain_validation"
+          ? "검증 결과를 아래 칸에 붙여넣고 Enter 전송"
+          : "Enter 전송 · Shift+Enter 줄바꿈";
+      }
+    }
+
+    function loadAiMessages() {
+      try {
+        const raw = localStorage.getItem(AI_HISTORY_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .filter((msg) => msg && typeof msg === "object" && typeof msg.text === "string")
+          .map((msg) => ({
+            role: ["user", "assistant", "meta"].includes(msg.role) ? msg.role : "meta",
+            text: msg.text,
+            at: Number.isFinite(Number(msg.at)) ? Number(msg.at) : Date.now(),
+          }))
+          .slice(-100);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function persistAiMessages() {
+      try {
+        if (aiMessages.length > 100) aiMessages.splice(0, aiMessages.length - 100);
+        localStorage.setItem(AI_HISTORY_STORAGE_KEY, JSON.stringify(aiMessages));
+      } catch (_) {}
+    }
+
+    function appendAiMessage(role, text) {
+      aiMessages.push({ role, text, at: Date.now() });
+      persistAiMessages();
+      renderAiMessages();
+    }
+
+    function upsertAiMessage(index, role, text) {
+      if (index >= 0 && index < aiMessages.length) {
+        aiMessages[index] = { ...aiMessages[index], role, text };
+      } else {
+        aiMessages.push({ role, text, at: Date.now() });
+      }
+      persistAiMessages();
+      renderAiMessages();
+    }
+
+    function renderAiMessages() {
+      const log = document.getElementById("ai-chat-log");
+      if (!log) return;
+      log.innerHTML = "";
+      if (!aiMessages.length) {
+        const empty = document.createElement("div");
+        empty.className = "ai-msg meta";
+        empty.textContent = "운영 상태 요약, 이상 징후 해석, 원인 추정 질문을 할 수 있습니다.";
+        log.appendChild(empty);
+      } else {
+        for (const msg of aiMessages) {
+          const row = document.createElement("div");
+          row.className = `ai-msg ${msg.role}`;
+          row.textContent = msg.text;
+          log.appendChild(row);
+        }
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function setAiHealthText(ok, text) {
+      const el = document.getElementById("ai-health-text");
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove("ai-status-ok", "ai-status-fail");
+      el.classList.add(ok ? "ai-status-ok" : "ai-status-fail");
+    }
+
+    async function checkAiHealth() {
+      if (aiBusy) return;
+      setAiHealthText(false, "확인 중...");
+      try {
+        const res = await fetch(API_BASE + "/api/v1/ai/health");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (data.ok) setAiHealthText(true, `정상 · 모델 ${data.model}`);
+        else setAiHealthText(false, `주의 · 모델 미탐지 (${data.model})`);
+      } catch (err) {
+        setAiHealthText(false, "오프라인 · " + err.message);
+      }
+    }
+
+    async function onSubmitAiChat(event) {
+      if (event && typeof event.preventDefault === "function") event.preventDefault();
+      if (aiBusy) return;
+      const input = document.getElementById("ai-chat-input");
+      const mode = document.getElementById("ai-mode")?.value || "chat";
+      const includeLatest = !!document.getElementById("ai-include-latest")?.checked;
+      const message = (input?.value || "").trim();
+      const validationRaw = (document.getElementById("ai-validation-input")?.value || "").trim();
+      let validationReport = null;
+      if (mode === "chat" && !message) return;
+      if (mode === "explain_validation") {
+        if (!validationRaw) {
+          appendAiMessage("meta", "검증 결과 해석에는 검증 결과 입력이 필요합니다.");
+          return;
+        }
+        try {
+          validationReport = JSON.parse(validationRaw);
+        } catch (err) {
+          appendAiMessage("meta", "검증 결과 형식을 확인해 주세요: " + err.message);
+          return;
+        }
+      }
+
+      appendAiMessage("user", mode === "explain_validation" ? (message || "검증 리포트 설명") : message);
+      const draftIndex = aiMessages.push({ role: "assistant", text: "응답 생성 중...", at: Date.now() }) - 1;
+      persistAiMessages();
+      renderAiMessages();
+      if (input) input.value = "";
+      setAiBusy(true);
+      try {
+        const body = {
+          mode,
+          message,
+          include_latest: includeLatest,
+          stream: true,
+        };
+        if (validationReport) body.validation_report = validationReport;
+        const res = await fetch(API_BASE + "/api/v1/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || ("HTTP " + res.status));
+        }
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder("utf-8");
+        if (!reader) {
+          throw new Error("스트리밍 리더를 열 수 없습니다.");
+        }
+        let buffer = "";
+        let answer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            let eventData;
+            try {
+              eventData = JSON.parse(trimmed);
+            } catch (_) {
+              continue
+            }
+            if (eventData.type === "chunk") {
+              answer += String(eventData.delta || "");
+              upsertAiMessage(draftIndex, "assistant", answer || "응답 생성 중...");
+            } else if (eventData.type === "done" && !answer) {
+              answer = String(eventData.answer || "");
+              upsertAiMessage(draftIndex, "assistant", answer || "(응답 없음)");
+            } else if (eventData.type === "error") {
+              throw new Error(String(eventData.error || "AI 스트리밍 오류"));
+            }
+          }
+        }
+        if (!answer) {
+          upsertAiMessage(draftIndex, "assistant", "(응답 없음)");
+        }
+      } catch (err) {
+        upsertAiMessage(draftIndex, "meta", "요청 실패: " + err.message);
+      } finally {
+        setAiBusy(false);
+      }
     }
 
     function renderRobots(robots) {
@@ -898,6 +1258,9 @@
       }
     }
 
+    syncAiMode();
+    renderAiMessages();
+    checkAiHealth();
     loadData();
     setInterval(loadData, REFRESH_MS);
   </script>

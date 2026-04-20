@@ -19,15 +19,15 @@ import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Iterable
 from urllib.parse import parse_qs, urlparse
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from apps.ai_agent import OllamaAASAgent, OllamaAgentError
-from settings import LOGGER, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+from apps.ai_agent import OllamaAgentError, build_ai_agent_from_env
+from settings import LOGGER
 from telemetry_store import (
     kpi_summary,
     parse_iso_datetime,
@@ -39,14 +39,6 @@ from telemetry_store import (
     utc_now,
     validate_telemetry,
 )
-
-
-def build_ai_agent() -> OllamaAASAgent:
-    return OllamaAASAgent(
-        base_url=OLLAMA_BASE_URL,
-        model=OLLAMA_MODEL,
-        timeout=OLLAMA_TIMEOUT,
-    )
 
 
 class TelemetryHandler(BaseHTTPRequestHandler):
@@ -66,6 +58,32 @@ class TelemetryHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_html_file(self, path: Path) -> None:
+        try:
+            body = path.read_bytes()
+        except OSError:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
+            return
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self._cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_ndjson_stream(self, status: HTTPStatus, events: Iterable[Dict[str, Any]]) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")
+        self._cors_headers()
+        self.end_headers()
+        for event in events:
+            line = json.dumps(event, ensure_ascii=False) + "\n"
+            self.wfile.write(line.encode("utf-8"))
+            self.wfile.flush()
+
     def _read_json(self) -> Dict[str, Any]:
         content_length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(content_length) if content_length > 0 else b""
@@ -80,6 +98,10 @@ class TelemetryHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+
+        if parsed.path in ("/", "/index.html"):
+            self._send_html_file(ROOT_DIR / "frontend" / "index.html")
+            return
 
         if parsed.path == "/health":
             self._send_json(HTTPStatus.OK, {
@@ -160,7 +182,7 @@ class TelemetryHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/v1/ai/health":
-            self._send_json(HTTPStatus.OK, build_ai_agent().health_check())
+            self._send_json(HTTPStatus.OK, build_ai_agent_from_env(LOGGER).health_check())
             return
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
@@ -204,6 +226,7 @@ class TelemetryHandler(BaseHTTPRequestHandler):
 
         message = str(payload.get("message", "")).strip()
         mode = str(payload.get("mode", "chat")).strip().lower()
+        stream = bool(payload.get("stream"))
         if not message and mode == "chat":
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "'message' is required"})
             return
@@ -220,14 +243,28 @@ class TelemetryHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "'validation_report' must be an object when provided"})
             return
 
-        agent = build_ai_agent()
+        agent = build_ai_agent_from_env(LOGGER)
         try:
             if mode == "explain_validation":
                 if validation_report is None:
                     self._send_json(HTTPStatus.BAD_REQUEST, {"error": "'validation_report' is required"})
                     return
+                if stream:
+                    self._stream_ai_response(
+                        mode=mode,
+                        model=agent.model,
+                        chunks=agent.explain_validation_report_stream(validation_report, telemetry),
+                    )
+                    return
                 answer = agent.explain_validation_report(validation_report, telemetry)
             elif mode == "chat":
+                if stream:
+                    self._stream_ai_response(
+                        mode=mode,
+                        model=agent.model,
+                        chunks=agent.chat_stream(message, telemetry, validation_report),
+                    )
+                    return
                 answer = agent.chat(message, telemetry, validation_report)
             else:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Unsupported mode; use 'chat' or 'explain_validation'"})
@@ -240,10 +277,30 @@ class TelemetryHandler(BaseHTTPRequestHandler):
             HTTPStatus.OK,
             {
                 "mode": mode,
-                "model": OLLAMA_MODEL,
+                "model": agent.model,
                 "answer": answer,
             },
         )
+
+    def _stream_ai_response(self, mode: str, model: str, chunks: Iterable[str]) -> None:
+        def events() -> Iterable[Dict[str, Any]]:
+            yield {"type": "meta", "mode": mode, "model": model}
+            full: list[str] = []
+            for chunk in chunks:
+                text = str(chunk)
+                if not text:
+                    continue
+                full.append(text)
+                yield {"type": "chunk", "delta": text}
+            yield {"type": "done", "answer": "".join(full), "mode": mode, "model": model}
+
+        try:
+            self._send_ndjson_stream(HTTPStatus.OK, events())
+        except OllamaAgentError as exc:
+            self._send_ndjson_stream(
+                HTTPStatus.BAD_GATEWAY,
+                [{"type": "error", "error": str(exc), "mode": mode, "model": model}],
+            )
 
     def log_message(self, format: str, *args: Any) -> None:
         LOGGER.info("%s - %s", self.address_string(), format % args)
