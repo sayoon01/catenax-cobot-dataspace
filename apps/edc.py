@@ -33,12 +33,20 @@ import argparse
 import json
 import logging
 import os
-import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Tuple
 from urllib import error, request
+
+try:
+    from apps.aas_mapper import TelemetryMapper
+    from apps.ai_agent import OllamaAASAgent, OllamaAgentError
+    from apps.preprocessor import TelemetryPreprocessor
+except ModuleNotFoundError:
+    from aas_mapper import TelemetryMapper
+    from ai_agent import OllamaAASAgent, OllamaAgentError
+    from preprocessor import TelemetryPreprocessor
 
 
 LOGGER = logging.getLogger("catenax.edc")
@@ -88,297 +96,17 @@ class HttpJsonClient:
 # 1.  Preprocessor  (rule-based cleaning)
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TelemetryPreprocessor:
-    """Rule-based cleaning and normalisation of raw telemetry dicts."""
-
-    # Fields that MUST be present; supply defaults when absent
-    REQUIRED_DEFAULTS: Dict[str, Any] = {
-        "good_parts": 0,
-        "reject_parts": 0,
-        "alarms": [],
-        "pose": {},
-        "joint_positions_deg": {},
-        "temperature_c": None,
-        "vibration_mm_s": None,
-    }
-
-    # Acceptable status tokens
-    VALID_STATUS = {"RUNNING", "IDLE", "ERROR", "MAINTENANCE", "STARTING", "STOPPING"}
-
-    def process(self, raw: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
-        """Return (cleaned_payload, warnings)."""
-        data = dict(raw)
-        warnings: List[str] = []
-
-        # Fill missing optional fields
-        for k, v in self.REQUIRED_DEFAULTS.items():
-            if k not in data:
-                data[k] = v if not callable(v) else v()
-                warnings.append(f"Added default for missing field '{k}'")
-
-        # Coerce numeric fields
-        for field_name in ("cycle_time_ms", "power_watts"):
-            try:
-                data[field_name] = float(data[field_name])
-            except (TypeError, ValueError) as exc:
-                warnings.append(f"Could not coerce '{field_name}' to float: {exc}")
-
-        for field_name in ("good_parts", "reject_parts"):
-            try:
-                data[field_name] = int(data[field_name])
-            except (TypeError, ValueError):
-                data[field_name] = 0
-
-        # Normalise status
-        status = str(data.get("status", "")).upper().strip()
-        if status not in self.VALID_STATUS:
-            warnings.append(f"Unknown status '{status}' — normalised to 'IDLE'")
-            status = "IDLE"
-        data["status"] = status
-
-        # Clamp negative cycle times
-        if data.get("cycle_time_ms", 0) < 0:
-            warnings.append("cycle_time_ms was negative — clamped to 0")
-            data["cycle_time_ms"] = 0.0
-
-        # Clamp negative power
-        if data.get("power_watts", 0) < 0:
-            warnings.append("power_watts was negative — clamped to 0")
-            data["power_watts"] = 0.0
-
-        # Ensure alarms is a list of strings
-        alarms = data.get("alarms", [])
-        if not isinstance(alarms, list):
-            data["alarms"] = [str(alarms)]
-        else:
-            data["alarms"] = [str(a) for a in alarms]
-
-        # Timestamp
-        if "produced_at" not in data:
-            data["produced_at"] = _utc_now()
-            warnings.append("Added 'produced_at' timestamp")
-
-        data["_preprocessed_at"] = _utc_now()
-        data["_warnings"] = warnings
-        return data, warnings
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2.  Mapper  (field → AAS semanticId / idShort)
+# 2.  Mapper  → apps/aas_mapper.py  (SEMANTIC_MAP, MappedField, TelemetryMapper)
 # ══════════════════════════════════════════════════════════════════════════════
-
-# Catena-X / IDTA semantic IDs (representative examples)
-SEMANTIC_MAP: Dict[str, Dict[str, str]] = {
-    "robot_id":            {"idShort": "RobotId",           "semanticId": "0173-1#02-AAR196#001"},
-    "line_id":             {"idShort": "LineId",             "semanticId": "0173-1#02-ABG568#001"},
-    "station_id":          {"idShort": "StationId",          "semanticId": "0173-1#02-AAR501#003"},
-    "cycle_time_ms":       {"idShort": "CycleTimeMs",        "semanticId": "0173-1#02-ABH990#001"},
-    "power_watts":         {"idShort": "PowerWatts",         "semanticId": "0173-1#02-AAV232#002"},
-    "program_name":        {"idShort": "ProgramName",        "semanticId": "0173-1#02-AAR503#001"},
-    "status":              {"idShort": "OperationalStatus",  "semanticId": "0173-1#02-AAR504#001"},
-    "good_parts":          {"idShort": "GoodParts",          "semanticId": "0173-1#02-AAV233#001"},
-    "reject_parts":        {"idShort": "RejectParts",        "semanticId": "0173-1#02-AAV234#001"},
-    "temperature_c":       {"idShort": "TemperatureC",       "semanticId": "0173-1#02-AAN457#002"},
-    "vibration_mm_s":      {"idShort": "VibrationMmPerSec",  "semanticId": "0173-1#02-AAQ326#001"},
-    "produced_at":         {"idShort": "ProducedAt",         "semanticId": "0173-1#02-AAQ564#001"},
-    "stored_at":           {"idShort": "StoredAt",           "semanticId": "0173-1#02-AAQ565#001"},
-}
-
-
-@dataclass
-class MappedField:
-    source_key: str
-    id_short: str
-    semantic_id: str
-    value: Any
-    value_type: str
-
-
-class TelemetryMapper:
-    """Maps preprocessed telemetry dict into a list of AAS-ready MappedField objects."""
-
-    @staticmethod
-    def _infer_type(value: Any) -> str:
-        if isinstance(value, bool):
-            return "boolean"
-        if isinstance(value, int):
-            return "integer"
-        if isinstance(value, float):
-            return "double"
-        if isinstance(value, list):
-            return "string"  # serialise lists as JSON string
-        return "string"
-
-    def map(self, data: Dict[str, Any]) -> List[MappedField]:
-        fields: List[MappedField] = []
-        for key, value in data.items():
-            if key.startswith("_"):
-                continue  # skip internal metadata
-            if isinstance(value, dict):
-                # Flatten nested dicts (pose, joint_positions_deg)
-                for sub_key, sub_val in value.items():
-                    composite_key = f"{key}_{sub_key}"
-                    sem = SEMANTIC_MAP.get(composite_key, {})
-                    fields.append(MappedField(
-                        source_key=composite_key,
-                        id_short=sem.get("idShort", _to_camel(composite_key)),
-                        semantic_id=sem.get("semanticId", f"custom:catenax:{composite_key}"),
-                        value=sub_val,
-                        value_type=self._infer_type(sub_val),
-                    ))
-            else:
-                sem = SEMANTIC_MAP.get(key, {})
-                val = json.dumps(value) if isinstance(value, list) else value
-                fields.append(MappedField(
-                    source_key=key,
-                    id_short=sem.get("idShort", _to_camel(key)),
-                    semantic_id=sem.get("semanticId", f"custom:catenax:{key}"),
-                    value=val,
-                    value_type=self._infer_type(value),
-                ))
-        return fields
-
-
-def _to_camel(snake: str) -> str:
-    parts = snake.split("_")
-    return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 3.  AI Agent  (Ollama qwen3:27b)
 # ══════════════════════════════════════════════════════════════════════════════
 
-class OllamaAgentError(RuntimeError):
-    pass
-
-
-class OllamaAASAgent:
-    """
-    AI agent backed by Ollama (qwen3:27b).
-
-    Capabilities
-    ────────────
-    • generate_aas_code        – produce Python AAS builder snippet
-    • infer_metamodel          – classify semantic domain & suggest IDTA template
-    • build_submodel_elements  – return refined AAS submodelElements list
-    """
-
-    def __init__(
-        self,
-        base_url: str = "http://localhost:11434",
-        model: str = "qwen3:27b",
-        timeout: float = 120.0,
-    ):
-        self.base_url = base_url.rstrip("/")
-        self.model = model
-        self.timeout = timeout
-        self.client = HttpJsonClient(timeout=timeout)
-
-    # ── internal ─────────────────────────────────────────────────────────────
-
-    def _chat(self, system: str, user: str) -> str:
-        url = f"{self.base_url}/api/chat"
-        payload = {
-            "model": self.model,
-            "stream": False,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user},
-            ],
-        }
-        try:
-            resp = self.client.request_json("POST", url, payload=payload)
-        except RuntimeError as exc:
-            raise OllamaAgentError(f"Ollama unreachable: {exc}") from exc
-
-        return resp.get("message", {}).get("content", "")
-
-    # ── public API ────────────────────────────────────────────────────────────
-
-    def generate_aas_code(self, mapped_fields: List[MappedField]) -> str:
-        """Return a Python code snippet that builds the AAS submodel."""
-        fields_json = json.dumps(
-            [{"idShort": f.id_short, "valueType": f.value_type,
-              "semanticId": f.semantic_id} for f in mapped_fields],
-            indent=2,
-        )
-        system = (
-            "You are an AAS (Asset Administration Shell) expert following IDTA and Catena-X standards. "
-            "Generate clean, runnable Python 3 code using the basyx-python-sdk library. "
-            "Return ONLY the Python code block, no explanation."
-        )
-        user = (
-            f"Generate Python code to build an AAS Submodel with idShort='CobotOperationalData' "
-            f"using the following fields:\n{fields_json}\n"
-            "Use basyx.aas.model. Include imports. "
-            "Name the submodel variable 'cobot_submodel'."
-        )
-        return self._chat(system, user)
-
-    def infer_metamodel(self, robot_id: str, program_name: str, alarms: List[str]) -> Dict[str, Any]:
-        """Classify semantic domain and return recommended IDTA template info."""
-        system = (
-            "You are a Catena-X manufacturing data space expert. "
-            "Respond ONLY with a valid JSON object, no markdown fences."
-        )
-        user = (
-            f"Given a collaborative robot:\n"
-            f"  robot_id={robot_id}\n"
-            f"  program_name={program_name}\n"
-            f"  active_alarms={alarms}\n"
-            "Return JSON with keys: "
-            "'domain' (string), 'idta_template' (string), "
-            "'risk_level' (low|medium|high), 'recommended_submodel_id' (urn string), "
-            "'notes' (string)."
-        )
-        raw = self._chat(system, user)
-        # Strip markdown fences if model adds them
-        raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {"raw_inference": raw, "parse_error": True}
-
-    def build_submodel_elements(
-        self, mapped_fields: List[MappedField], metamodel: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """AI-refined AAS submodelElements list."""
-        fields_summary = [
-            {"idShort": f.id_short, "value": str(f.value)[:80], "valueType": f.value_type}
-            for f in mapped_fields
-        ]
-        system = (
-            "You are an AAS submodel builder. "
-            "Respond ONLY with a valid JSON array of AAS Property objects. "
-            "No markdown, no prose."
-        )
-        user = (
-            f"Build AAS submodelElements for domain='{metamodel.get('domain', 'manufacturing')}'. "
-            f"Fields:\n{json.dumps(fields_summary, indent=2)}\n"
-            "Each element: {modelType, idShort, valueType, value, semanticId}. "
-            "Use the exact idShort and valueType given. "
-            "Add reasonable semanticId if not already present."
-        )
-        raw = self._chat(system, user)
-        raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
-        try:
-            elements = json.loads(raw)
-            if isinstance(elements, list):
-                return elements
-        except json.JSONDecodeError:
-            pass
-        # Fallback: construct elements from mapped_fields
-        return [
-            {
-                "modelType": "Property",
-                "idShort": f.id_short,
-                "valueType": f.value_type,
-                "value": f.value,
-                "semanticId": f.semantic_id,
-            }
-            for f in mapped_fields
-            if f.value is not None
-        ]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -884,12 +612,9 @@ class CobotEDCPipeline:
 
         # 1. Preprocess
         LOGGER.info("[Pipeline] Stage 1: Preprocessing")
-        cleaned, warnings = self.preprocessor.process(raw)
-        result["stages"]["preprocessing"] = {
-            "status": "ok",
-            "warnings": warnings,
-            "cleaned_fields": list(cleaned.keys()),
-        }
+        preprocessed = self.preprocessor.preprocess(raw)
+        cleaned = preprocessed.cleaned
+        result["stages"]["preprocessing"] = preprocessed.stage_summary()
 
         # 2. Map
         LOGGER.info("[Pipeline] Stage 2: Mapping")
@@ -1082,9 +807,32 @@ def build_pipeline_from_env(include_ai: bool = True) -> CobotEDCPipeline:
     )
 
 
-def _load_json(path: str) -> Dict[str, Any]:
+def _load_json(path: str, telemetry_index: int = 0) -> Dict[str, Any]:
     with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+        payload = json.load(fh)
+
+    if isinstance(payload, dict):
+        return payload
+
+    if isinstance(payload, list):
+        if not payload:
+            raise ValueError(f"Telemetry list is empty: {path}")
+        if telemetry_index < 0 or telemetry_index >= len(payload):
+            raise ValueError(
+                f"telemetry-index {telemetry_index} out of range (size={len(payload)})"
+            )
+        picked = payload[telemetry_index]
+        if not isinstance(picked, dict):
+            raise ValueError(
+                f"Telemetry entry at index {telemetry_index} must be an object/dict"
+            )
+        LOGGER.info(
+            "Loaded telemetry from list file=%s index=%s total=%s",
+            path, telemetry_index, len(payload),
+        )
+        return picked
+
+    raise ValueError(f"Unsupported telemetry JSON type: {type(payload).__name__}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1105,10 +853,14 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     # sync-aas  (legacy, rule-based only)
     sync = sub.add_parser("sync-aas", help="push a telemetry JSON to AAS")
     sync.add_argument("--telemetry-json", required=True)
+    sync.add_argument("--telemetry-index", default=0, type=int,
+                      help="when telemetry JSON is a list, choose item index")
 
     # pipeline  (full AI pipeline)
     pipe = sub.add_parser("pipeline", help="run the full AI preprocessing pipeline")
     pipe.add_argument("--telemetry-json",  required=True)
+    pipe.add_argument("--telemetry-index", default=0, type=int,
+                      help="when telemetry JSON is a list, choose item index")
     pipe.add_argument("--skip-aas-push",   action="store_true")
     pipe.add_argument("--run-edc",         action="store_true")
     pipe.add_argument("--asset-id")
@@ -1131,11 +883,13 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         )
     elif args.command == "sync-aas":
         pipeline = CobotEDCPipeline(aas_bridge=build_aas_bridge_from_env())
-        result = pipeline.publish_telemetry_to_aas(_load_json(args.telemetry_json))
+        result = pipeline.publish_telemetry_to_aas(
+            _load_json(args.telemetry_json, args.telemetry_index)
+        )
     else:  # pipeline
         pipeline = build_pipeline_from_env(include_ai=True)
         result = pipeline.run_full_pipeline(
-            raw=_load_json(args.telemetry_json),
+            raw=_load_json(args.telemetry_json, args.telemetry_index),
             skip_aas_push=args.skip_aas_push,
             run_edc=args.run_edc,
             asset_id=getattr(args, "asset_id", None),

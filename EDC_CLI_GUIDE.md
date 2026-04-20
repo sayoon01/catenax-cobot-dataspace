@@ -48,12 +48,16 @@ python3 edc.py onboard \
 
 ```bash
 python3 edc.py sync-aas \
-  --telemetry-json server/data/sample_01.json
+  --telemetry-json server/data/sample_telemetry.json \
+  --telemetry-index 0
 ```
 
 옵션:
 
 - `--telemetry-json`
+- `--telemetry-index`
+  - 입력 파일이 JSON 배열일 때 사용할 항목 index
+  - 기본값: `0`
 
 ### `pipeline`
 
@@ -63,13 +67,15 @@ python3 edc.py sync-aas \
 
 ```bash
 python3 edc.py pipeline \
-  --telemetry-json server/data/sample_01.json \
+  --telemetry-json server/data/sample_telemetry.json \
+  --telemetry-index 0 \
   --skip-aas-push
 ```
 
 옵션:
 
 - `--telemetry-json`
+- `--telemetry-index`
 - `--skip-aas-push`
 - `--run-edc`
 - `--asset-id`
@@ -212,16 +218,17 @@ export OLLAMA_TIMEOUT=120
 
 ```bash
 python3 edc.py pipeline \
-  --telemetry-json server/data/sample_06.json \
-  --skip-aas-push \
-  --run-edc
+  --telemetry-json server/data/sample_telemetry.json \
+  --telemetry-index 5 \
+  --skip-aas-push
 ```
 
 ### AAS 반영
 
 ```bash
 python3 edc.py sync-aas \
-  --telemetry-json server/data/sample_01.json
+  --telemetry-json server/data/sample_telemetry.json \
+  --telemetry-index 0
 ```
 
 ### EDC 자산 등록
@@ -237,13 +244,13 @@ python3 edc.py onboard \
 
 - 단일 파일 크기가 큼
 - 명령별 lazy initialization이 아님
-- `pipeline`의 `--skip-edc` 동작이 직관적이지 않음
+- 리스트형 입력 사용 시 `--telemetry-index` 관리를 사용자가 직접 해야 함
 - Ollama, AAS, EDC 오류 처리와 재시도 정책이 단순함
 
 ## 권장 개선 방향
 
 - 명령별 서비스 초기화 분리
-- `--skip-edc` / `--run-edc` 옵션 재설계
+- `--telemetry-index` 반복 실행을 줄이기 위한 배치 처리 옵션 검토
 - `edc.py`를 `services/`, `models/`, `commands/` 단위로 분리
 - 출력 JSON 스키마 고정 및 테스트 추가
 

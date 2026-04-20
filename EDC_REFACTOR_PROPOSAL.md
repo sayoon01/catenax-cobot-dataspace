@@ -233,7 +233,7 @@ catenax_react/
 1. 전처리 테스트
 2. 매핑 테스트
 3. 검증 테스트
-4. `pipeline --telemetry-json sample_01.json` golden output 테스트
+4. `pipeline --telemetry-json sample_telemetry.json --telemetry-index 0` golden output 테스트
 5. EDC/AAS 연동 실패 fallback 테스트
 
 ### 테스트 우선순위

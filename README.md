@@ -4,7 +4,7 @@
 
 구성은 3개 축입니다.
 
-- 프런트엔드: React 18 CDN + Babel 기반 SPA
+- 프런트엔드: `frontend/index.html` 기반 단일 대시보드 (Vanilla JS + Chart.js)
 - 백엔드: Python 표준 라이브러리 기반 텔레메트리 HTTP 서버
 - CLI: `edc.py` 기반 Catena-X EDC + AAS + AI 파이프라인
 
@@ -15,29 +15,11 @@ catenax_react/
 ├── edc.py
 ├── frontend/
 │   ├── index.html
-│   └── src/
-│       ├── app.jsx
-│       ├── components/
-│       │   ├── layout.js
-│       │   └── ui.js
-│       ├── hooks/
-│       ├── pages/
-│       │   ├── aas.js
-│       │   ├── catalog.js
-│       │   ├── dashboard.js
-│       │   ├── edc-page.js
-│       │   ├── pages.js
-│       │   ├── pipeline.js
-│       │   ├── robots.js
-│       │   ├── telemetry.js
-│       │   └── validation.js
-│       └── utils/
-│           ├── constants.js
-│           └── helpers.js
+│   └── src/ (legacy React 코드, 현재 기본 실행 경로 아님)
 ├── server/
 │   ├── app.py
 │   └── data/
-│       ├── sample_01.json ~ sample_10.json
+│       ├── sample_telemetry.json
 │       └── latest.json
 ├── EDC_CLI_GUIDE.md
 ├── EDC_REFACTOR_PROPOSAL.md
@@ -48,22 +30,11 @@ catenax_react/
 
 ## 현재 화면 구성
 
-- `Dashboard`
-  KPI, 4-step 흐름도, 라인별 전력 차트, 알람 패널
-- `Robots`
-  저장된 로봇 목록과 JSON 상세 모달
-- `Telemetry`
-  JSON POST 전송과 저장 레코드 조회
-- `Pipeline`
-  전처리, 매핑, AI 추론, 코드 생성, AAS 빌드, 3-Layer 검증
-- `AAS`
-  AAS Property 테이블 확인
-- `Validation`
-  최근 검증 결과 요약
-- `EDC`
-  Asset / Policy 페이로드 빌더
-- `Catalog`
-  카탈로그 조회와 계약 협상 시뮬레이션
+- 화이트톤 단일 대시보드 UI (`frontend/index.html`)
+- KPI 카드(레코드 수, 로봇 수, 평균 온도/전력, good/reject, running 수)
+- 로봇 상태 카드 그리드
+- 차트 4종(수율/전력/온도/상태 분포)
+- 15초 자동 새로고침 + 수동 Refresh 버튼
 
 ## 빠른 실행
 
@@ -92,6 +63,10 @@ python3 -m http.server 3000 --bind 127.0.0.1
 
 - `http://127.0.0.1:3000`
 
+또는 파일 직접 열기:
+
+- `xdg-open frontend/index.html`
+
 프런트는 기본적으로 `http://localhost:8080` 백엔드를 바라보며, 서버가 없으면 로컬 샘플 데이터로 동작합니다.
 
 ### 3. CLI 실행
@@ -103,9 +78,9 @@ python3 edc.py --help
 대표 명령:
 
 ```bash
-python3 edc.py sync-aas --telemetry-json server/data/sample_01.json
+python3 edc.py sync-aas --telemetry-json server/data/sample_telemetry.json --telemetry-index 0
 python3 edc.py onboard --asset-id cobot-01 --provider-bpn BPNL000000000001 --cobot-api-base-url http://localhost:8080
-python3 edc.py pipeline --telemetry-json server/data/sample_01.json
+python3 edc.py pipeline --telemetry-json server/data/sample_telemetry.json --telemetry-index 0
 ```
 
 ## CLI 환경변수
@@ -131,16 +106,10 @@ export OLLAMA_TIMEOUT=120
 
 ### 프런트엔드
 
-- [frontend/src/app.jsx](/home/keti_spark1/yune/catenax_react/frontend/src/app.jsx)
-  루트 상태와 페이지 조립
-- [frontend/src/components/layout.js](/home/keti_spark1/yune/catenax_react/frontend/src/components/layout.js)
-  `Sidebar`, `Topbar`
-- [frontend/src/components/ui.js](/home/keti_spark1/yune/catenax_react/frontend/src/components/ui.js)
-  공통 UI 컴포넌트
-- [frontend/src/pages](/home/keti_spark1/yune/catenax_react/frontend/src/pages)
-  페이지별 파일 분리 완료
-- [frontend/src/utils/helpers.js](/home/keti_spark1/yune/catenax_react/frontend/src/utils/helpers.js)
-  전처리, 매핑, 검증, AI 호출 헬퍼
+- [frontend/index.html](/home/keti_spark1/yune/catenax_react/frontend/index.html)
+  Chart.js 기반 단일 대시보드 화면
+- [frontend/src](/home/keti_spark1/yune/catenax_react/frontend/src)
+  이전 React 구조(레거시 참고 코드)
 
 ### 백엔드
 

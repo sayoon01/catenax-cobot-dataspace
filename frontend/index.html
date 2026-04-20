@@ -1,76 +1,746 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Catena-X · Cobot Data Space</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <!-- React 18 CDN -->
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
-  <!-- Babel for JSX transform -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catena-X 코봇 운영 대시보드</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700&display=swap">
   <style>
-    /* ══════════════════════════════════════════════
-       GLOBAL DESIGN TOKENS
-    ══════════════════════════════════════════════ */
     :root {
-      --bg:        #f4f5f7;
-      --surface:   #ffffff;
-      --surface-2: #f0f2f5;
-      --surface-3: #e8eaed;
-      --border:    #dde1e8;
-      --border-s:  #eaecf1;
-      --ink:       #0f1724;
-      --ink-2:     #4b5568;
-      --ink-3:     #9aa5b4;
-      --accent:    #1d4ed8;
-      --accent-s:  #eff4ff;
-      --accent-2:  #2563eb;
-      --green:     #16a34a;
-      --green-s:   #f0fdf4;
-      --amber:     #d97706;
-      --amber-s:   #fffbeb;
-      --red:       #dc2626;
-      --red-s:     #fef2f2;
-      --purple:    #7c3aed;
-      --purple-s:  #f5f3ff;
-      --teal:      #0f766e;
-      --teal-s:    #f0fdfa;
-      --r:         10px;
-      --r-sm:      7px;
-      --sh:        0 1px 2px rgba(0,0,0,.05), 0 3px 10px rgba(0,0,0,.04);
-      --sh-md:     0 4px 6px rgba(0,0,0,.06), 0 10px 28px rgba(0,0,0,.06);
-      --f:         'Sora', sans-serif;
-      --f-kr:      'IBM Plex Sans KR', sans-serif;
-      --f-mono:    'IBM Plex Mono', monospace;
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-2: #f8fbff;
+      --border: #dbe5f1;
+      --text: #10233d;
+      --muted: #6d7f97;
+      --accent: #1570ef;
+      --green: #12b76a;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --mono: "DM Mono", monospace;
+      --ui: "DM Sans", system-ui, sans-serif;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 14px; }
-    body { font-family: var(--f-kr); background: var(--bg); color: var(--ink); min-height: 100vh; }
-    #root { min-height: 100vh; }
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    button { cursor: pointer; font-family: var(--f-kr); }
-    input, select, textarea { font-family: var(--f-kr); }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--ui); background: var(--bg); color: var(--text); }
+    .page { max-width: 1500px; margin: 0 auto; padding: 0 20px 32px; }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      margin: 0 -20px 22px; padding: 14px 20px;
+    }
+    .logo { display: flex; gap: 10px; align-items: center; }
+    .logo-mark {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: linear-gradient(135deg, #45a1ff, #1570ef);
+    }
+    .logo-title { font-weight: 700; letter-spacing: .05em; color: var(--accent); font-size: 14px; }
+    .logo-sub { color: var(--muted); font-size: 11px; font-family: var(--mono); }
+    .head-right { display: flex; gap: 14px; align-items: center; }
+    .last-update { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--accent);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .kpis .card {
+      min-width: 0;
+      padding: 11px 10px;
+    }
+    .kpis .k-label { font-size: 9px; letter-spacing: .06em; line-height: 1.25; }
+    .kpis .k-val {
+      font-size: clamp(17px, 1.65vw, 24px);
+      line-height: 1.1;
+      margin-top: 6px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .kpis .k-sub { margin-top: 4px; font-size: 10px; line-height: 1.3; word-break: keep-all; }
+    @media (max-width: 1020px) {
+      .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .k-label { color: var(--muted); font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .k-val { font-size: 28px; line-height: 1.1; margin-top: 8px; font-weight: 700; color: var(--accent); }
+    .k-sub { margin-top: 6px; color: var(--muted); font-size: 11px; font-family: var(--mono); }
+
+    .sec-head { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
+    .sec-title { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .line { flex: 1; height: 1px; background: var(--border); }
+
+    .robot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .robot-top { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
+    .rid { color: var(--accent); font-family: var(--mono); font-weight: 700; font-size: 14px; }
+    .loc { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .badge { font-size: 10px; border-radius: 999px; padding: 3px 8px; font-family: var(--mono); border: 1px solid transparent; }
+    .RUNNING { background: #eafbf3; color: var(--green); border-color: #b9eecf; }
+    .IDLE { background: #fff8eb; color: var(--yellow); border-color: #f8dca8; }
+    .ERROR, .FAULT { background: #feeff1; color: var(--red); border-color: #f5c2c8; }
+    .WARNING { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .STOP, .UNKNOWN, .MAINTENANCE { background: #eef2f7; color: var(--muted); border-color: #dce5f0; }
+
+    .filter-bar {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+      margin-bottom: 16px; padding: 12px 14px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 10px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+    .filter-group select {
+      min-width: 160px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface-2); color: var(--text); font-family: var(--ui); font-size: 12px;
+    }
+    .filter-hint { font-size: 11px; color: #8ea0b8; margin-left: auto; align-self: center; max-width: 280px; text-align: right; }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .metric { background: var(--surface-2); border: 1px solid #e7edf6; border-radius: 8px; padding: 8px 10px; }
+    .m-label { font-size: 9px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; }
+    .m-val { margin-top: 3px; font-size: 15px; font-weight: 700; }
+
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 12px;
+    }
+    .chart-card {
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      box-shadow: 0 6px 18px rgba(16, 35, 61, 0.05);
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .chart-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 22px rgba(16, 35, 61, 0.08);
+    }
+    .chart-title {
+      font-size: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      margin-bottom: 4px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .chart-subtitle {
+      font-size: 11px;
+      color: #8ea0b8;
+      margin-bottom: 10px;
+    }
+    .chart-wrap { height: 230px; }
+
+    .error {
+      display: none;
+      margin-bottom: 12px;
+      color: #b42318;
+      background: #fff2f1;
+      border: 1px solid #ffd0cc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel" src="src/utils/constants.js" data-presets="react"></script>
-  <script type="text/babel" src="src/utils/helpers.js" data-presets="react"></script>
-  <script type="text/babel" src="src/components/ui.js" data-presets="react"></script>
-  <script type="text/babel" src="src/components/layout.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/dashboard.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/robots.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/telemetry.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/pipeline.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/aas.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/validation.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/edc-page.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/catalog.js" data-presets="react"></script>
-  <script type="text/babel" src="src/pages/pages.js" data-presets="react"></script>
-  <script type="text/babel" src="src/app.jsx" data-presets="react"></script>
+  <div class="page">
+    <header>
+      <div class="logo">
+        <div class="logo-mark"></div>
+        <div>
+          <div class="logo-title">CATENA-X</div>
+          <div class="logo-sub">코봇 텔레메트리 대시보드</div>
+        </div>
+      </div>
+      <div class="head-right">
+        <div class="last-update" id="last-update">업데이트 --:--:--</div>
+        <button class="btn" id="refresh-btn">새로고침</button>
+      </div>
+    </header>
+
+    <div class="error" id="error-box"></div>
+
+    <div class="kpis">
+      <div class="card"><div class="k-label">총 데이터 건수</div><div class="k-val" id="k-count">0</div><div class="k-sub">저장된 텔레메트리 이벤트</div></div>
+      <div class="card"><div class="k-label">로봇 수</div><div class="k-val" id="k-robots">0</div><div class="k-sub">운영 중인 코봇 수</div></div>
+      <div class="card"><div class="k-label">평균 온도</div><div class="k-val" id="k-temp">0.0</div><div class="k-sub">섭씨 기준</div></div>
+      <div class="card"><div class="k-label">평균 전력</div><div class="k-val" id="k-power">0.0</div><div class="k-sub">와트 기준</div></div>
+      <div class="card"><div class="k-label">양품 수량</div><div class="k-val" id="k-good">0</div><div class="k-sub" id="k-reject">0 불량</div></div>
+      <div class="card"><div class="k-label">가동 중 로봇</div><div class="k-val" id="k-running">0</div><div class="k-sub">상태 가동</div></div>
+    </div>
+
+    <div class="sec-head"><div class="sec-title">최신 로봇 상태</div><div class="line"></div></div>
+    <div class="filter-bar" id="filter-bar">
+      <div class="filter-group">
+        <label for="filter-line">라인</label>
+        <select id="filter-line"><option value="">전체 라인</option></select>
+      </div>
+      <div class="filter-group">
+        <label for="filter-status">상태</label>
+        <select id="filter-status"><option value="">전체 상태</option></select>
+      </div>
+      <div class="filter-hint">로봇 카드는 위험도 높은 순, 차트는 로봇 ID(cobot-01…) 순입니다. 온도 75°C·진동 5 mm/s 기준선 참고.</div>
+    </div>
+    <div class="robot-grid" id="robot-grid"></div>
+
+    <div class="sec-head"><div class="sec-title">운영 분석</div><div class="line"></div></div>
+    <div class="charts">
+      <div class="card chart-card"><div class="chart-title">로봇별 수율 (%)</div><div class="chart-subtitle">양품 / 전체 생산 비율</div><div class="chart-wrap"><canvas id="c-yield"></canvas></div></div>
+      <div class="card chart-card"><div class="chart-title">로봇별 전력 (W)</div><div class="chart-subtitle">현재 전력 사용량 비교</div><div class="chart-wrap"><canvas id="c-power"></canvas></div></div>
+      <div class="card chart-card"><div class="chart-title">로봇별 온도 (°C)</div><div class="chart-subtitle">과열 구간 시각화</div><div class="chart-wrap"><canvas id="c-temp"></canvas></div></div>
+      <div class="card chart-card"><div class="chart-title">상태 분포</div><div class="chart-subtitle">가동/대기/주의/고장 비중</div><div class="chart-wrap"><canvas id="c-status"></canvas></div></div>
+      <div class="card chart-card"><div class="chart-title">불량률 (%)</div><div class="chart-subtitle">로봇별 reject ratio</div><div class="chart-wrap"><canvas id="c-reject"></canvas></div></div>
+      <div class="card chart-card"><div class="chart-title">라인별 평균 사이클 (ms)</div><div class="chart-subtitle">라인 병목 구간 확인</div><div class="chart-wrap"><canvas id="c-line-cycle"></canvas></div></div>
+      <div class="card chart-card"><div class="chart-title">온도-진동 상관</div><div class="chart-subtitle">이상징후 탐지용 분포</div><div class="chart-wrap"><canvas id="c-temp-vibe"></canvas></div></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:8080";
+    const REFRESH_MS = 15000;
+    const charts = {};
+    /** 운영 분석 차트: 인디고·틸·바이올렛 계열 (배경과 대비·시리즈 구분) */
+    const CHART_SERIES = ["#5b6ee8", "#0d9f9f", "#8b6ae6", "#3b9eff", "#d977c4", "#47b881", "#6b8cff", "#14a3a8"];
+    const CHART_THRESH = { temp: "rgba(124, 58, 237, 0.92)", reject: "rgba(217, 119, 6, 0.92)" };
+    const CHART_SCATTER = { ok: "rgba(91, 110, 232, 0.55)", warn: "rgba(232, 93, 117, 0.85)", lineH: "rgba(232, 93, 117, 0.88)", lineV: "rgba(124, 58, 237, 0.88)" };
+    const CHART_REJECT_BAR = { high: "#e85d75", mid: "#e8a23d", low: "#3db88c" };
+    const CHART_STATUS = {
+      RUNNING: "#3db88c",
+      IDLE: "#d4a017",
+      ERROR: "#e85d75",
+      FAULT: "#d63d5c",
+      STOP: "#6b7c93",
+      UNKNOWN: "#94a3b8",
+      MAINTENANCE: "#9b6bff",
+      WARNING: "#e8a23d",
+    };
+    const STATUS_LABEL_KO = {
+      RUNNING: "가동",
+      IDLE: "대기",
+      WARNING: "주의",
+      ERROR: "오류",
+      FAULT: "고장",
+      STOP: "정지",
+      MAINTENANCE: "정비",
+      UNKNOWN: "미확인"
+    };
+
+    const THRESHOLD_TEMP_C = 75;
+    const THRESHOLD_VIBE_MM_S = 5;
+    const THRESHOLD_REJECT_PCT = 2;
+
+    let _cachedNormalized = [];
+
+    document.getElementById("refresh-btn").addEventListener("click", loadData);
+    document.getElementById("filter-line").addEventListener("change", () => renderFromCache());
+    document.getElementById("filter-status").addEventListener("change", () => renderFromCache());
+
+    function toNum(v, d = 0) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : d;
+    }
+
+    function latestByRobot(items) {
+      const byRobot = new Map();
+      for (const row of items) {
+        const id = row.robot_id || "unknown";
+        const ts = Date.parse(row.stored_at || row.produced_at || "") || 0;
+        const prev = byRobot.get(id);
+        const prevTs = prev ? (Date.parse(prev.stored_at || prev.produced_at || "") || 0) : -1;
+        if (!prev || ts >= prevTs) {
+          byRobot.set(id, row);
+        }
+      }
+      return Array.from(byRobot.values());
+    }
+
+    function rejectRatio(r) {
+      const good = toNum(r.good_parts, 0);
+      const reject = toNum(r.reject_parts, 0);
+      const total = good + reject;
+      return total ? reject / total : 0;
+    }
+
+    function riskScore(r) {
+      const st = String(r.status || "UNKNOWN").toUpperCase();
+      let s = 0;
+      if (st === "FAULT" || st === "ERROR") s += 100;
+      else if (st === "WARNING") s += 55;
+      else if (st === "MAINTENANCE") s += 35;
+      else if (st === "IDLE") s += 12;
+      else if (st === "STOP" || st === "UNKNOWN") s += 25;
+
+      const temp = toNum(r.temperature_c, NaN);
+      if (Number.isFinite(temp) && temp > THRESHOLD_TEMP_C) {
+        s += (temp - THRESHOLD_TEMP_C) * 2.5;
+      }
+      const vib = toNum(r.vibration_mm_s, NaN);
+      if (Number.isFinite(vib) && vib > THRESHOLD_VIBE_MM_S) {
+        s += (vib - THRESHOLD_VIBE_MM_S) * 12;
+      }
+      s += rejectRatio(r) * 80;
+
+      const alarms = r.alarms;
+      if (Array.isArray(alarms) && alarms.length) s += Math.min(alarms.length * 8, 24);
+
+      return s;
+    }
+
+    function sortRobotsByRisk(robots) {
+      return [...robots].sort((a, b) => riskScore(b) - riskScore(a));
+    }
+
+    /** 차트 X축: cobot-01, cobot-02 … 숫자 인식 정렬 (위험도 정렬과 분리) */
+    function sortRobotsByIdNatural(robots) {
+      return [...robots].sort((a, b) => {
+        const ida = String(a.robot_id || "");
+        const idb = String(b.robot_id || "");
+        return ida.localeCompare(idb, undefined, { numeric: true, sensitivity: "base" });
+      });
+    }
+
+    function applyFilters(latest) {
+      const line = document.getElementById("filter-line").value;
+      const status = document.getElementById("filter-status").value;
+      return latest.filter((r) => {
+        if (line && String(r.line_id || "").trim() !== line) return false;
+        if (status && String(r.status || "").toUpperCase() !== status) return false;
+        return true;
+      });
+    }
+
+    function escapeAttr(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    }
+
+    function populateFilterOptions(latest) {
+      const lineSel = document.getElementById("filter-line");
+      const statSel = document.getElementById("filter-status");
+      const prevLine = lineSel.value;
+      const prevStat = statSel.value;
+
+      const lines = [...new Set(latest.map((r) => String(r.line_id || "").trim()).filter(Boolean))].sort();
+      lineSel.innerHTML = '<option value="">전체 라인</option>' +
+        lines.map((l) => `<option value="${escapeAttr(l)}">${escapeAttr(l)}</option>`).join("");
+      lineSel.value = lines.includes(prevLine) ? prevLine : "";
+
+      const statuses = [...new Set(latest.map((r) => String(r.status || "UNKNOWN").toUpperCase()))].sort();
+      statSel.innerHTML = '<option value="">전체 상태</option>' +
+        statuses.map((s) => `<option value="${escapeAttr(s)}">${STATUS_LABEL_KO[s] || s}</option>`).join("");
+      statSel.value = statuses.includes(prevStat) ? prevStat : "";
+    }
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    }
+
+    function normalizeItems(rawItems) {
+      const flat = [];
+      for (const item of rawItems) {
+        if (Array.isArray(item)) {
+          for (const nested of item) {
+            if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+              flat.push(nested);
+            }
+          }
+          continue;
+        }
+        if (item && typeof item === "object") {
+          flat.push(item);
+        }
+      }
+      return flat;
+    }
+
+    function showError(msg) {
+      const box = document.getElementById("error-box");
+      box.style.display = "block";
+      box.textContent = msg;
+    }
+
+    function hideError() {
+      const box = document.getElementById("error-box");
+      box.style.display = "none";
+      box.textContent = "";
+    }
+
+    function renderRobots(robots) {
+      const grid = document.getElementById("robot-grid");
+      grid.innerHTML = "";
+      for (const r of robots) {
+        const status = String(r.status || "UNKNOWN").toUpperCase();
+        const statusLabel = STATUS_LABEL_KO[status] || status;
+        const good = toNum(r.good_parts, 0);
+        const reject = toNum(r.reject_parts, 0);
+        const total = good + reject;
+        const yieldPct = total ? ((good / total) * 100).toFixed(1) : "0.0";
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div class="robot-top">
+            <div>
+              <div class="rid">${r.robot_id || "-"}</div>
+              <div class="loc">${r.line_id || "-"} / ${r.station_id || "-"}</div>
+            </div>
+            <div class="badge ${status}">${statusLabel}</div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><div class="m-label">온도</div><div class="m-val">${toNum(r.temperature_c, 0).toFixed(1)} °C</div></div>
+            <div class="metric"><div class="m-label">전력</div><div class="m-val">${toNum(r.power_watts, 0).toFixed(1)} W</div></div>
+            <div class="metric"><div class="m-label">사이클 타임</div><div class="m-val">${toNum(r.cycle_time_ms, 0).toFixed(0)} ms</div></div>
+            <div class="metric"><div class="m-label">수율</div><div class="m-val">${yieldPct} %</div></div>
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    function baseChartOptions() {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#5c6c82", font: { family: "DM Mono", size: 10 } }, grid: { color: "#e4eaf4" } },
+          y: { ticks: { color: "#5c6c82", font: { family: "DM Mono", size: 10 } }, grid: { color: "#e4eaf4" } }
+        }
+      };
+    }
+
+    function thresholdLineDataset(labels, yValue, labelText, borderColor) {
+      return {
+        type: "line",
+        label: labelText,
+        data: labels.map(() => yValue),
+        borderColor: borderColor || CHART_THRESH.temp,
+        borderWidth: 2,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 1,
+        tension: 0,
+      };
+    }
+
+    function upsertBarChart(id, labels, values, colors, unit, thresholdY) {
+      const ctx = document.getElementById(id).getContext("2d");
+      if (charts[id]) charts[id].destroy();
+      const datasets = [{
+        type: "bar",
+        label: "값",
+        data: values,
+        backgroundColor: colors,
+        borderRadius: 8,
+        borderSkipped: false,
+        order: 2,
+      }];
+      if (thresholdY != null && labels.length) {
+        const thrLabel = unit === "°C" ? `온도 기준 ${thresholdY}°C` : `기준 ${thresholdY}${unit}`;
+        const thrColor = unit === "°C" ? CHART_THRESH.temp : CHART_THRESH.reject;
+        datasets.push(thresholdLineDataset(labels, thresholdY, thrLabel, thrColor));
+      }
+      charts[id] = new Chart(ctx, {
+        data: { labels, datasets },
+        options: {
+          ...baseChartOptions(),
+          plugins: {
+            ...baseChartOptions().plugins,
+            legend: { display: !!thresholdY, position: "top", labels: { boxWidth: 24, font: { size: 9 }, color: "#5c6c82" } },
+          },
+          scales: {
+            ...baseChartOptions().scales,
+            y: {
+              ...baseChartOptions().scales.y,
+              title: { display: true, text: unit, color: "#5c6c82", font: { size: 9 } },
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+
+    function upsertHorizontalBarChart(id, labels, values, colors, unit) {
+      const ctx = document.getElementById(id).getContext("2d");
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(ctx, {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 8 }] },
+        options: {
+          ...baseChartOptions(),
+          indexAxis: "y",
+          scales: {
+            ...baseChartOptions().scales,
+            x: { ...baseChartOptions().scales.x, title: { display: true, text: unit, color: "#5c6c82", font: { size: 9 } } }
+          }
+        }
+      });
+    }
+
+    function destroyAllCharts() {
+      for (const k of Object.keys(charts)) {
+        if (charts[k]) {
+          charts[k].destroy();
+          delete charts[k];
+        }
+      }
+    }
+
+    function renderCharts(robots, statusMap) {
+      if (!robots.length) {
+        destroyAllCharts();
+        return;
+      }
+      const chartOrder = sortRobotsByIdNatural(robots);
+      const labels = chartOrder.map((r) => r.robot_id || "-");
+      const powerValues = chartOrder.map((r) => toNum(r.power_watts, 0));
+      const tempValues = chartOrder.map((r) => toNum(r.temperature_c, 0));
+      const yieldValues = chartOrder.map((r) => {
+        const good = toNum(r.good_parts, 0);
+        const reject = toNum(r.reject_parts, 0);
+        const total = good + reject;
+        return total ? Number(((good / total) * 100).toFixed(1)) : 0;
+      });
+      const barColors = labels.map((_, i) => CHART_SERIES[i % CHART_SERIES.length]);
+
+      upsertBarChart("c-yield", labels, yieldValues, barColors, "%", null);
+      upsertBarChart("c-power", labels, powerValues, barColors, "W", null);
+      upsertBarChart("c-temp", labels, tempValues, barColors, "°C", THRESHOLD_TEMP_C);
+
+      const rejectRateValues = chartOrder.map((r) => Number((rejectRatio(r) * 100).toFixed(2)));
+      const rejectColors = rejectRateValues.map((v) =>
+        v > THRESHOLD_REJECT_PCT ? CHART_REJECT_BAR.high : v > 1.0 ? CHART_REJECT_BAR.mid : CHART_REJECT_BAR.low);
+      upsertBarChart("c-reject", labels, rejectRateValues, rejectColors, "%", THRESHOLD_REJECT_PCT);
+
+      const lineMap = {};
+      for (const r of chartOrder) {
+        const line = r.line_id || "unknown";
+        if (!lineMap[line]) lineMap[line] = { sum: 0, count: 0 };
+        lineMap[line].sum += toNum(r.cycle_time_ms, 0);
+        lineMap[line].count += 1;
+      }
+      const lineLabels = Object.keys(lineMap).sort((a, b) =>
+        String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" }));
+      const lineCycleValues = lineLabels.map((k) => Number((lineMap[k].sum / lineMap[k].count).toFixed(1)));
+      upsertHorizontalBarChart(
+        "c-line-cycle",
+        lineLabels,
+        lineCycleValues,
+        lineLabels.map((_, i) => CHART_SERIES[i % CHART_SERIES.length]),
+        "ms"
+      );
+
+      const sLabels = Object.keys(statusMap);
+      const sValues = Object.values(statusMap);
+      const sColors = sLabels.map((s) => CHART_STATUS[s] || "#94a3b8");
+      const ctx = document.getElementById("c-status").getContext("2d");
+      if (charts["c-status"]) charts["c-status"].destroy();
+      charts["c-status"] = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: sLabels.map((s) => STATUS_LABEL_KO[s] || s),
+          datasets: [{ data: sValues, backgroundColor: sColors, borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "62%",
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: { color: "#5c6c82", font: { family: "DM Mono", size: 10 }, boxWidth: 10, padding: 10 }
+            }
+          }
+        }
+      });
+
+      const scatterCtx = document.getElementById("c-temp-vibe").getContext("2d");
+      if (charts["c-temp-vibe"]) charts["c-temp-vibe"].destroy();
+      const scatterPoints = chartOrder.map((r) => ({
+        x: toNum(r.temperature_c, 0),
+        y: toNum(r.vibration_mm_s, 0),
+        robot: r.robot_id || "-"
+      }));
+      let xMin = 0, xMax = THRESHOLD_TEMP_C + 25, yMin = 0, yMax = THRESHOLD_VIBE_MM_S * 3;
+      if (scatterPoints.length) {
+        const xs = scatterPoints.map((p) => p.x);
+        const ys = scatterPoints.map((p) => p.y);
+        xMin = Math.min(...xs, THRESHOLD_TEMP_C) - 5;
+        xMax = Math.max(...xs, THRESHOLD_TEMP_C) + 8;
+        yMin = 0;
+        const yHi = Math.max(...ys, THRESHOLD_VIBE_MM_S);
+        yMax = Number.isFinite(yHi) ? yHi * 1.25 + 1 : THRESHOLD_VIBE_MM_S * 3;
+      }
+      charts["c-temp-vibe"] = new Chart(scatterCtx, {
+        data: {
+          datasets: [
+            {
+              type: "scatter",
+              label: "로봇",
+              data: scatterPoints,
+              pointRadius: 6,
+              pointHoverRadius: 8,
+              backgroundColor: scatterPoints.map((p) =>
+                p.y > THRESHOLD_VIBE_MM_S || p.x > THRESHOLD_TEMP_C ? CHART_SCATTER.warn : CHART_SCATTER.ok),
+              borderColor: "rgba(255,255,255,0.92)",
+              borderWidth: 1,
+              order: 3,
+            },
+            {
+              type: "line",
+              label: `진동 기준 ${THRESHOLD_VIBE_MM_S} mm/s`,
+              data: [{ x: xMin, y: THRESHOLD_VIBE_MM_S }, { x: xMax, y: THRESHOLD_VIBE_MM_S }],
+              borderColor: CHART_SCATTER.lineH,
+              borderWidth: 2,
+              borderDash: [6, 4],
+              pointRadius: 0,
+              fill: false,
+              order: 1,
+            },
+            {
+              type: "line",
+              label: `온도 기준 ${THRESHOLD_TEMP_C}°C`,
+              data: [{ x: THRESHOLD_TEMP_C, y: yMin }, { x: THRESHOLD_TEMP_C, y: yMax }],
+              borderColor: CHART_SCATTER.lineV,
+              borderWidth: 2,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false,
+              order: 2,
+            },
+          ],
+        },
+        options: {
+          ...baseChartOptions(),
+          plugins: {
+            legend: {
+              display: true,
+              position: "top",
+              labels: {
+                boxWidth: 18,
+                font: { size: 9 },
+                color: "#5c6c82",
+                filter: (item) => item.text !== "로봇",
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  if (ctx.datasetIndex !== 0) return ctx.dataset.label || "";
+                  const p = scatterPoints[ctx.dataIndex];
+                  return `${p.robot} · 온도 ${ctx.parsed.x}°C / 진동 ${ctx.parsed.y}mm/s`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ...baseChartOptions().scales.x,
+              min: xMin,
+              max: xMax,
+              title: { display: true, text: "온도 (°C)", color: "#5c6c82", font: { size: 9 } },
+            },
+            y: {
+              ...baseChartOptions().scales.y,
+              min: yMin,
+              max: yMax,
+              title: { display: true, text: "진동 (mm/s)", color: "#5c6c82", font: { size: 9 } },
+            },
+          },
+        },
+      });
+    }
+
+    function buildStatusMapFor(robots) {
+      const m = {};
+      for (const r of robots) {
+        const st = String(r.status || "UNKNOWN").toUpperCase();
+        m[st] = (m[st] || 0) + 1;
+      }
+      return m;
+    }
+
+    function renderFromCache() {
+      if (!_cachedNormalized.length) return;
+      const allLatest = latestByRobot(_cachedNormalized);
+      populateFilterOptions(allLatest);
+      const filtered = applyFilters(allLatest);
+      const sortedForCards = sortRobotsByRisk(filtered);
+      const statusMap = buildStatusMapFor(filtered);
+
+      let sumTemp = 0, tempCount = 0, sumPower = 0, powerCount = 0;
+      let totalGood = 0, totalReject = 0, running = 0;
+      for (const r of filtered) {
+        const t = toNum(r.temperature_c, NaN);
+        const p = toNum(r.power_watts, NaN);
+        if (Number.isFinite(t)) { sumTemp += t; tempCount += 1; }
+        if (Number.isFinite(p)) { sumPower += p; powerCount += 1; }
+        totalGood += toNum(r.good_parts, 0);
+        totalReject += toNum(r.reject_parts, 0);
+        if (String(r.status || "").toUpperCase() === "RUNNING") running += 1;
+      }
+
+      setText("k-count", _cachedNormalized.length.toLocaleString());
+      setText("k-robots", filtered.length.toLocaleString());
+      setText("k-temp", tempCount ? (sumTemp / tempCount).toFixed(1) : "0.0");
+      setText("k-power", powerCount ? (sumPower / powerCount).toFixed(1) : "0.0");
+      setText("k-good", totalGood.toLocaleString());
+      setText("k-reject", totalReject.toLocaleString() + " 불량");
+      setText("k-running", running.toLocaleString());
+
+      renderRobots(sortedForCards);
+      if (!filtered.length) destroyAllCharts();
+      else renderCharts(filtered, statusMap);
+      setText("last-update", "업데이트 " + new Date().toLocaleTimeString());
+    }
+
+    function renderDashboard(rawItems) {
+      _cachedNormalized = normalizeItems(rawItems);
+      renderFromCache();
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch(API_BASE + "/api/v1/cobot/telemetry/all");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        hideError();
+        renderDashboard(Array.isArray(data.items) ? data.items : []);
+      } catch (err) {
+        showError("API 연결 실패: " + err.message + " (python server/app.py --port 8080 실행 확인)");
+      }
+    }
+
+    loadData();
+    setInterval(loadData, REFRESH_MS);
+  </script>
 </body>
 </html>
