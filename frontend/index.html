@@ -256,6 +256,46 @@
     .sec-head { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; }
     .sec-title { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; }
     .line { flex: 1; height: 1px; background: var(--border); }
+    .ops-overview {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .ops-box { padding: 14px; }
+    .ops-title {
+      font-size: 10px; color: var(--muted); font-family: var(--mono);
+      letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px;
+    }
+    .ops-list { display: flex; flex-direction: column; gap: 8px; }
+    .ops-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid #e7edf6;
+      border-radius: 9px;
+      background: #fbfdff;
+      font-size: 12px;
+    }
+    .ops-index {
+      width: 18px; height: 18px; border-radius: 999px;
+      background: #eef5ff; color: var(--accent); font-family: var(--mono); font-size: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .ops-sub { color: var(--muted); font-size: 11px; }
+    .stage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stage-card {
+      border: 1px solid #e7edf6; border-radius: 9px; padding: 10px;
+      background: #fbfdff;
+    }
+    .stage-name { font-size: 10px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; }
+    .stage-val { margin-top: 6px; font-size: 14px; font-weight: 700; }
+    .stage-note { margin-top: 4px; color: var(--muted); font-size: 11px; }
+    @media (max-width: 980px) {
+      .ops-overview { grid-template-columns: 1fr; }
+    }
 
     .robot-grid {
       display: grid;
@@ -364,6 +404,17 @@
       <div class="card"><div class="k-label">가동 중 로봇</div><div class="k-val" id="k-running">0</div><div class="k-sub">상태 가동</div></div>
     </div>
 
+    <div class="ops-overview">
+      <div class="card ops-box">
+        <div class="ops-title">운영 우선 점검 타임라인</div>
+        <div class="ops-list" id="ops-timeline"></div>
+      </div>
+      <div class="card ops-box">
+        <div class="ops-title">파이프라인 스테이지 보드</div>
+        <div class="stage-grid" id="ops-stage-board"></div>
+      </div>
+    </div>
+
     <div class="sec-head"><div class="sec-title">최신 로봇 상태</div><div class="line"></div></div>
     <div class="filter-bar" id="filter-bar">
       <div class="filter-group">
@@ -383,7 +434,6 @@
       <div class="card chart-card"><div class="chart-title">로봇별 수율 (%)</div><div class="chart-subtitle">양품 / 전체 생산 비율</div><div class="chart-wrap"><canvas id="c-yield"></canvas></div></div>
       <div class="card chart-card"><div class="chart-title">로봇별 전력 (W)</div><div class="chart-subtitle">현재 전력 사용량 비교</div><div class="chart-wrap"><canvas id="c-power"></canvas></div></div>
       <div class="card chart-card"><div class="chart-title">로봇별 온도 (°C)</div><div class="chart-subtitle">과열 구간 시각화</div><div class="chart-wrap"><canvas id="c-temp"></canvas></div></div>
-      <div class="card chart-card"><div class="chart-title">상태 분포</div><div class="chart-subtitle">가동/대기/주의/고장 비중</div><div class="chart-wrap"><canvas id="c-status"></canvas></div></div>
       <div class="card chart-card"><div class="chart-title">불량률 (%)</div><div class="chart-subtitle">로봇별 reject ratio</div><div class="chart-wrap"><canvas id="c-reject"></canvas></div></div>
       <div class="card chart-card"><div class="chart-title">라인별 평균 사이클 (ms)</div><div class="chart-subtitle">라인 병목 구간 확인</div><div class="chart-wrap"><canvas id="c-line-cycle"></canvas></div></div>
       <div class="card chart-card"><div class="chart-title">온도-진동 상관</div><div class="chart-subtitle">이상징후 탐지용 분포</div><div class="chart-wrap"><canvas id="c-temp-vibe"></canvas></div></div>
@@ -943,6 +993,50 @@
       }
     }
 
+    function renderOpsTimeline(robots) {
+      const wrap = document.getElementById("ops-timeline");
+      if (!wrap) return;
+      wrap.innerHTML = "";
+      const top = robots.slice(0, 4);
+      if (!top.length) {
+        wrap.innerHTML = '<div class="ops-sub">표시할 로봇 데이터가 없습니다.</div>';
+        return;
+      }
+      top.forEach((r, idx) => {
+        const st = String(r.status || "UNKNOWN").toUpperCase();
+        const card = document.createElement("div");
+        card.className = "ops-item";
+        card.innerHTML = `
+          <div class="ops-index">${idx + 1}</div>
+          <div>
+            <div><b>${r.robot_id || "-"}</b> · ${r.line_id || "-"} / ${r.station_id || "-"}</div>
+            <div class="ops-sub">온도 ${toNum(r.temperature_c, 0).toFixed(1)}°C · 진동 ${toNum(r.vibration_mm_s, 0).toFixed(1)} mm/s</div>
+          </div>
+          <div class="badge ${st}">${STATUS_LABEL_KO[st] || st}</div>
+        `;
+        wrap.appendChild(card);
+      });
+    }
+
+    function renderStageBoard(allLatest, filtered, statusMap) {
+      const wrap = document.getElementById("ops-stage-board");
+      if (!wrap) return;
+      const warnings = (statusMap.WARNING || 0) + (statusMap.ERROR || 0) + (statusMap.FAULT || 0);
+      const stageData = [
+        { name: "ingest", val: `${_cachedNormalized.length}건`, note: `최신 로봇 ${allLatest.length}대` },
+        { name: "quality", val: warnings ? `주의 ${warnings}건` : "정상", note: warnings ? "이상 상태 점검 필요" : "이상 상태 없음" },
+        { name: "insight", val: filtered.length ? "분석 가능" : "데이터 부족", note: "필터 결과 기반 지표 계산" },
+        { name: "ai-assist", val: document.getElementById("ai-health-text")?.textContent || "상태 미확인", note: "AI 어시스턴트 연결 상태" },
+      ];
+      wrap.innerHTML = stageData.map((s) => `
+        <div class="stage-card">
+          <div class="stage-name">${s.name}</div>
+          <div class="stage-val">${s.val}</div>
+          <div class="stage-note">${s.note}</div>
+        </div>
+      `).join("");
+    }
+
     function baseChartOptions() {
       return {
         responsive: true,
@@ -1076,30 +1170,6 @@
         lineLabels.map((_, i) => CHART_SERIES[i % CHART_SERIES.length]),
         "ms"
       );
-
-      const sLabels = Object.keys(statusMap);
-      const sValues = Object.values(statusMap);
-      const sColors = sLabels.map((s) => CHART_STATUS[s] || "#94a3b8");
-      const ctx = document.getElementById("c-status").getContext("2d");
-      if (charts["c-status"]) charts["c-status"].destroy();
-      charts["c-status"] = new Chart(ctx, {
-        type: "doughnut",
-        data: {
-          labels: sLabels.map((s) => STATUS_LABEL_KO[s] || s),
-          datasets: [{ data: sValues, backgroundColor: sColors, borderWidth: 0 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: "62%",
-          plugins: {
-            legend: {
-              position: "bottom",
-              labels: { color: "#5c6c82", font: { family: "DM Mono", size: 10 }, boxWidth: 10, padding: 10 }
-            }
-          }
-        }
-      });
 
       const scatterCtx = document.getElementById("c-temp-vibe").getContext("2d");
       if (charts["c-temp-vibe"]) charts["c-temp-vibe"].destroy();
@@ -1235,6 +1305,8 @@
       setText("k-reject", totalReject.toLocaleString() + " 불량");
       setText("k-running", running.toLocaleString());
 
+      renderOpsTimeline(sortedForCards);
+      renderStageBoard(allLatest, filtered, statusMap);
       renderRobots(sortedForCards);
       if (!filtered.length) destroyAllCharts();
       else renderCharts(filtered, statusMap);
