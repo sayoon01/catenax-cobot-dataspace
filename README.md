@@ -18,7 +18,7 @@ python3 -m http.server 3000 --bind 127.0.0.1
 
 - UI: `http://localhost:3000/`
 - API: `http://localhost:8080/`
-- 참고: `http://localhost:8080/`는 API 안내 랜딩 페이지입니다.
+- 참고: `http://localhost:8080/`도 `frontend/index.html`을 반환합니다.
 
 ## 전체 아키텍처 흐름
 
@@ -92,15 +92,20 @@ flowchart TD
 
 ## 온보딩/EDC 파이프라인
 
+`server`는 telemetry 데이터 제공 API이고, `apps.edc`는 그 API를 AAS/EDC 자산으로 등록하는 CLI 파이프라인입니다.
+
 ```mermaid
 flowchart TD
-    IN[sample telemetry JSON] --> P1[apps/preprocessor.py<br/>정규화/기본값/경고]
-    P1 --> M1[apps/aas_mapper.py<br/>semantic map 기반 매핑]
-    M1 --> A1[apps/ai_agent.py<br/>메타모델/보조 추론]
-    A1 --> E1[apps/edc.py]
-    E1 --> OUT1[(AAS Submodel payload)]
-    E1 --> OUT2[(EDC mock asset/policy/contract)]
+    IN[sample telemetry JSON] --> P1[Preprocess<br/>필드/단위/타입 정규화]
+    P1 --> M1[AAS Mapping<br/>idShort / semanticId]
+    M1 --> A1[AI Assist optional<br/>AAS elements 생성]
+    A1 --> V1[Validate<br/>AAS 품질 검사]
+    V1 --> AAS[AAS Push<br/>Submodel PUT]
+    V1 --> EDC[EDC Register<br/>asset / policy / contract]
+    EDC --> API[server API<br/>HttpData baseUrl/path]
 ```
+
+EDC 등록 시 생성되는 구조는 `EDCAsset` → `EDCPolicy` 2개(access/contract) → `ContractDefinition` 순서입니다. Asset의 `dataAddress`는 `http://localhost:8080` 같은 서버 주소와 `/api/v1/cobot/telemetry` path를 가리킵니다.
 
 ## 주요 기능
 
@@ -145,7 +150,7 @@ export CATENAX_EDC_MANAGEMENT_URL=http://localhost:8181/management
 
 ## 문서
 
-- `server/PIPELINE.md`: 서버 요청 흐름
-- `apps/PIPELINE.md`: AAS/EDC/AI 파이프라인 흐름
-- `EDC_CLI_GUIDE.md`: CLI 사용법
+- `server/PIPELINE.md`: 서버 API와 EDC 데이터 제공 흐름
+- `apps/PIPELINE.md`: AAS/EDC/AI 파이프라인 세부 구조
+- `EDC_CLI_GUIDE.md`: CLI 사용법과 payload 예시
 - `EDC_REFACTOR_PROPOSAL.md`: 현재 구조 기준 리팩터링 메모

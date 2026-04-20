@@ -110,6 +110,92 @@ export CATENAX_EDC_API_KEY=
 
 기본 모델은 `apps/ai_agent.py` 기준 `qwen3:14b`입니다.
 
+## Payload 예시
+
+입력 telemetry는 dict 또는 dict list입니다. list인 경우 `--telemetry-index`로 하나를 선택합니다.
+
+```json
+{
+  "robot_id": "cobot-01",
+  "line_id": "line-a",
+  "station_id": "station-07",
+  "cycle_time_ms": 1825.4,
+  "power_watts": 438.7,
+  "program_name": "door-assembly-v2",
+  "status": "RUNNING",
+  "good_parts": 1280,
+  "reject_parts": 9,
+  "temperature_c": 42.8,
+  "vibration_mm_s": 1.9,
+  "alarms": [],
+  "produced_at": "2025-01-15T08:30:00Z"
+}
+```
+
+EDC asset 등록 시 생성되는 핵심 payload 형태입니다.
+
+```json
+{
+  "asset": {
+    "properties": {
+      "asset:prop:id": "cobot-01",
+      "asset:prop:name": "Cobot telemetry cobot-01",
+      "asset:prop:contenttype": "application/json",
+      "catenax:providerBpn": "BPNL000000000001",
+      "catenax:assetType": "factory-cobot-telemetry",
+      "catenax:semanticId": "urn:aas:cobot:submodel:001"
+    }
+  },
+  "dataAddress": {
+    "type": "HttpData",
+    "baseUrl": "http://localhost:8080",
+    "path": "/api/v1/cobot/telemetry",
+    "proxyMethod": "true",
+    "proxyPath": "true",
+    "proxyQueryParams": "true",
+    "proxyBody": "true"
+  }
+}
+```
+
+Policy는 기본적으로 `BusinessPartnerNumber EQ provider_bpn` 조건의 `USE` 권한입니다.
+
+```json
+{
+  "@id": "cobot-01-access-policy",
+  "@type": "PolicyDefinition",
+  "policy": {
+    "@type": "Set",
+    "permission": [{
+      "action": "USE",
+      "target": "cobot-01",
+      "constraint": {
+        "leftOperand": "BusinessPartnerNumber",
+        "operator": "EQ",
+        "rightOperand": "BPNL000000000001"
+      }
+    }]
+  }
+}
+```
+
+Contract definition은 asset과 access/contract policy를 묶습니다.
+
+```json
+{
+  "@id": "cobot-01-contract",
+  "@type": "ContractDefinition",
+  "accessPolicyId": "cobot-01-access-policy",
+  "contractPolicyId": "cobot-01-contract-policy",
+  "assetsSelector": [{
+    "@type": "Criterion",
+    "operandLeft": "https://w3id.org/edc/v0.0.1/ns/id",
+    "operator": "=",
+    "operandRight": "cobot-01"
+  }]
+}
+```
+
 ## 출력
 
 `pipeline`은 단계별 결과를 JSON으로 출력합니다.
