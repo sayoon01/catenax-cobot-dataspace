@@ -13,12 +13,12 @@ flowchart TD
     VAL --> AAS[5 AAS Push optional]
     VAL --> EDC[6 EDC Register optional]
 
-    PRE -.-> PFILE[apps/preprocessor.py]
-    MAP -.-> MFILE[apps/aas_mapper.py<br/>semantic_map.json]
-    AI -.-> AIFILE[apps/ai_agent.py]
-    VAL -.-> EFILE[apps/edc.py::AASValidator]
-    AAS -.-> BFILE[apps/edc.py::AASBridge]
-    EDC -.-> CFILE[apps/edc.py::EDCConnectorService]
+    PRE -.-> PFILE[preprocessor.py]
+    MAP -.-> MFILE[aas_mapper.py and semantic_map.json]
+    AI -.-> AIFILE[ai_agent.py]
+    VAL -.-> EFILE[edc.py AASValidator]
+    AAS -.-> BFILE[edc.py AASBridge]
+    EDC -.-> CFILE[edc.py EDCConnectorService]
 ```
 
 오케스트레이션은 `apps/edc.py::CobotEDCPipeline.run_full_pipeline()`이 담당합니다.
@@ -100,7 +100,7 @@ flowchart TD
     T[FactoryCobotTelemetry] --> SM[telemetry_to_submodel]
     E[AAS elements] --> SM
     SM --> PAYLOAD[Submodel payload]
-    PAYLOAD --> PUT[PUT /submodels/{CATENAX_AAS_SUBMODEL_ID}]
+    PAYLOAD --> PUT[PUT submodels by CATENAX_AAS_SUBMODEL_ID]
 ```
 
 `AASBridge`는 `CATENAX_AAS_BASE_URL`과 `CATENAX_AAS_SUBMODEL_ID`를 사용합니다. `CATENAX_AAS_API_KEY`가 있으면 요청 헤더에 포함합니다.

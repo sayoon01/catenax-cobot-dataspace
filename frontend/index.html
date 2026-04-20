@@ -149,8 +149,35 @@
     }
     .ai-status-ok { color: var(--green); }
     .ai-status-fail { color: var(--red); }
+    .ai-history-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+    .ai-history-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .ai-history-count {
+      margin-left: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .ai-history-clear {
+      min-width: 64px;
+      padding: 6px 9px;
+      font-size: 11px;
+    }
     .ai-chat-log {
-      height: 320px;
+      height: min(58vh, 620px);
+      min-height: 480px;
       overflow-y: auto;
       padding: 12px;
       background: #fbfdff;
@@ -464,6 +491,10 @@
               <button type="button" class="btn" id="ai-health-btn">상태 확인</button>
             </div>
           </div>
+          <div class="ai-history-bar">
+            <div class="ai-history-title">대화 히스토리 <span id="ai-history-count" class="ai-history-count">0개</span></div>
+            <button type="button" class="btn ai-history-clear" id="ai-history-clear">비우기</button>
+          </div>
           <div id="ai-chat-log" class="ai-chat-log"></div>
           <form id="ai-chat-form" class="ai-chat-form">
             <textarea
@@ -615,6 +646,7 @@
     });
     document.getElementById("ai-health-btn").addEventListener("click", checkAiHealth);
     document.getElementById("ai-chat-form").addEventListener("submit", onSubmitAiChat);
+    document.getElementById("ai-history-clear").addEventListener("click", clearAiHistory);
     document.getElementById("ai-mode").addEventListener("change", syncAiMode);
     document.getElementById("ai-chat-input").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -766,6 +798,8 @@
         sendBtn.textContent = busy ? "응답 대기 중..." : "보내기";
       }
       if (healthBtn) healthBtn.disabled = busy;
+      const clearBtn = document.getElementById("ai-history-clear");
+      if (clearBtn) clearBtn.disabled = busy || aiMessages.length === 0;
     }
 
     function syncAiMode() {
@@ -830,14 +864,25 @@
       renderAiMessages();
     }
 
+    function clearAiHistory() {
+      if (aiBusy) return;
+      aiMessages.splice(0, aiMessages.length);
+      persistAiMessages();
+      renderAiMessages();
+    }
+
     function renderAiMessages() {
       const log = document.getElementById("ai-chat-log");
+      const count = document.getElementById("ai-history-count");
+      const clearBtn = document.getElementById("ai-history-clear");
+      if (count) count.textContent = `${aiMessages.length}개`;
+      if (clearBtn) clearBtn.disabled = aiBusy || aiMessages.length === 0;
       if (!log) return;
       log.innerHTML = "";
       if (!aiMessages.length) {
         const empty = document.createElement("div");
         empty.className = "ai-msg meta";
-        empty.textContent = "운영 상태 요약, 이상 징후 해석, 원인 추정 질문을 할 수 있습니다.";
+        empty.textContent = "저장된 대화 히스토리가 없습니다.";
         log.appendChild(empty);
       } else {
         for (const msg of aiMessages) {
