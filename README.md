@@ -1,6 +1,8 @@
 # Catena-X Cobot Data Space
 
 공장 협동로봇 텔레메트리 데이터를 수집하고, Catena-X 관점에서 표준화, 검증, AAS/EDC 흐름까지 시뮬레이션하는 데모 프로젝트입니다.
+<img width="1438" height="1871" alt="스크린샷 2026-04-20 180712" src="https://github.com/user-attachments/assets/7b09b866-3fbd-47f5-96e1-f5a9ed5daa5e" />
+<img width="1411" height="1103" alt="스크린샷 2026-04-20 180654" src="https://github.com/user-attachments/assets/1c678fc0-c597-473b-8493-52e4002fb2c4" />
 
 구성은 3개 축입니다.
 
