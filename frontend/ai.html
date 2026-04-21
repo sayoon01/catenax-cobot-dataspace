@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catena-X AI 어시스턴트</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700&display=swap">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="logo">
+        <div class="logo-mark"></div>
+        <div class="logo-text">
+          <div class="logo-title">CATENA-X</div>
+          <div class="logo-sub" id="header-subtitle">AI 어시스턴트</div>
+        </div>
+        <button type="button" class="nav-toggle" id="nav-toggle" aria-label="메뉴 열기" aria-expanded="false" aria-controls="nav-drawer">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+      <div class="head-right">
+        <a class="btn" href="index.html">운영 대시보드</a>
+      </div>
+    </header>
+    <div class="alt-screen" style="max-width: 1100px;">
+        <h1>AI 어시스턴트</h1>
+        <p>최근 코봇 상태를 바탕으로 이상 징후, 위험 원인, 조치 우선순위를 자연어로 확인합니다.</p>
+        <div class="note">상태 확인으로 AI 연결 여부를 확인할 수 있습니다. 최근 상태를 반영하면 답변이 현재 대시보드 데이터에 맞춰집니다.</div>
+        <div class="ai-chat-shell">
+          <div class="ai-chat-toolbar">
+            <label class="ai-inline">
+              질문 종류
+              <select id="ai-mode" class="ai-mode-select">
+                <option value="chat">운영 질문</option>
+                <option value="explain_validation">검증 결과 해석</option>
+              </select>
+            </label>
+            <label class="ai-inline">
+              <input type="checkbox" id="ai-include-latest" checked />
+              최근 상태 반영
+            </label>
+            <div class="ai-inline">
+              <span id="ai-health-text">AI 상태 확인 전</span>
+              <button type="button" class="btn" id="ai-health-btn">상태 확인</button>
+            </div>
+          </div>
+          <div class="ai-history-bar">
+            <div class="ai-history-title">대화 히스토리 <span id="ai-history-count" class="ai-history-count">0개</span></div>
+            <button type="button" class="btn ai-history-clear" id="ai-history-clear">비우기</button>
+          </div>
+          <div id="ai-chat-log" class="ai-chat-log"></div>
+          <form id="ai-chat-form" class="ai-chat-form">
+            <textarea
+              id="ai-chat-input"
+              class="ai-chat-input"
+              placeholder="예) 지금 가장 먼저 확인해야 할 로봇과 이유를 알려줘"
+            ></textarea>
+            <textarea
+              id="ai-validation-input"
+              class="ai-chat-input ai-json-input is-hidden"
+              placeholder='검증 결과 JSON을 붙여넣으세요'
+            ></textarea>
+            <div class="ai-chat-actions">
+              <div class="ai-chat-help">Enter 전송 · Shift+Enter 줄바꿈</div>
+              <button type="submit" class="btn" id="ai-send-btn">보내기</button>
+            </div>
+          </form>
+        </div>
+        <div style="margin-top: 18px;">
+          <div class="sec-head"><div class="sec-title">운영 분석</div><div class="line"></div></div>
+          <div class="charts">
+            <div class="card chart-card"><div class="chart-title">최근 구간 평균 사이클 추이 (ms)</div><div class="chart-subtitle" id="trend-cycle-subtitle">최근 1시간 · 5분 버킷 · 저장된 텔레메트리 샘플 집계</div><div class="chart-wrap"><canvas id="c-trend-cycle"></canvas></div></div>
+            <div class="card chart-card"><div class="chart-title">로봇별 전력 (W)</div><div class="chart-subtitle">현재 전력 사용량 비교</div><div class="chart-wrap"><canvas id="c-power"></canvas></div></div>
+            <div class="card chart-card"><div class="chart-title">로봇별 온도 (°C)</div><div class="chart-subtitle">과열 구간 시각화</div><div class="chart-wrap"><canvas id="c-temp"></canvas></div></div>
+            <div class="card chart-card"><div class="chart-title">불량률 (%)</div><div class="chart-subtitle">로봇별 reject ratio</div><div class="chart-wrap"><canvas id="c-reject"></canvas></div></div>
+            <div class="card chart-card"><div class="chart-title">라인별 평균 사이클 (ms)</div><div class="chart-subtitle">라인 병목 구간 확인</div><div class="chart-wrap"><canvas id="c-line-cycle"></canvas></div></div>
+            <div class="card chart-card"><div class="chart-title">온도-진동 상관</div><div class="chart-subtitle">이상징후 탐지용 분포</div><div class="chart-wrap"><canvas id="c-temp-vibe"></canvas></div></div>
+          </div>
+        </div>
+    </div>
+  </div>
+
+  <div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
+  <aside id="nav-drawer" class="nav-drawer" role="dialog" aria-modal="true" aria-labelledby="nav-drawer-title">
+    <div class="nav-drawer-head" id="nav-drawer-title">화면 전환</div>
+        <a href="index.html" class="nav-drawer-item" id="nav-item-dashboard">
+      운영 대시보드
+      <div class="nav-drawer-desc">KPI · 로봇 카드 · 차트</div>
+    </a>
+    <a href="ai.html" class="is-active nav-drawer-item" id="nav-item-ai">
+      AI 어시스턴트
+      <div class="nav-drawer-desc">질의응답 · 검증 설명</div>
+    </a>
+    <a href="edc.html" class="nav-drawer-item" id="nav-item-edc">
+      EDC · 파이프라인
+      <div class="nav-drawer-desc">CLI 안내</div>
+    </a>
+  </aside>
+  <script src="js/nav.js"></script>
+  <script src="js/ai.js"></script>
+</body>
+</html>

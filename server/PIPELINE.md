@@ -1,6 +1,6 @@
 # Server Pipeline
 
-`server`는 `8080`에서 코봇 텔레메트리 JSON API를 제공합니다. UI는 `3000` 정적 서버에서 제공할 수 있지만, `server`도 `/` 요청에 대해 `frontend/index.html`을 반환합니다.
+`server`는 `8080`에서 코봇 텔레메트리 JSON API를 제공합니다. UI는 `3000` 정적 서버에서 제공할 수 있고, `server`는 `/`에 `frontend/index.html`을, `/ai.html`·`/edc.html`·`/css/*`·`/js/*` 등에 `frontend/` 정적 파일을 반환합니다.
 
 EDC 관점에서 이 서버는 **EDC Connector 자체가 아니라 데이터 제공 API(Data Provider API)** 입니다. `apps.edc`가 EDC에 `HttpData` asset을 등록할 때 `baseUrl`로 이 서버 주소를, `path`로 `/api/v1/cobot/telemetry` 같은 조회 API를 지정합니다.
 
@@ -50,7 +50,8 @@ flowchart TD
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| `GET` | `/` 또는 `/index.html` | 프런트엔드 HTML 반환 |
+| `GET` | `/` 또는 `/index.html` | 프런트엔드 대시보드 HTML 반환 |
+| `GET` | `/ai.html`, `/edc.html`, `/css/*.css`, `/js/*.js` | `frontend/` 이하 동일 경로의 정적 파일(화면 분리·공통 리소스) |
 | `GET` | `/health` | 서버 상태 확인 |
 | `POST` | `/api/v1/cobot/telemetry` | telemetry 저장 |
 | `GET` | `/api/v1/cobot/telemetry?limit=20` | 최근 telemetry 조회, 최대 `500` |

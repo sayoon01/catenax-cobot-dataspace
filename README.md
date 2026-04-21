@@ -18,9 +18,9 @@ cd frontend
 python3 -m http.server 3000 --bind 127.0.0.1
 ```
 
-- UI: `http://localhost:3000/`
+- UI(정적 서버): `http://localhost:3000/` → 운영 대시보드, `http://localhost:3000/ai.html`, `http://localhost:3000/edc.html`
 - API: `http://localhost:8080/`
-- 참고: `http://localhost:8080/`도 `frontend/index.html`을 반환합니다.
+- 참고: `http://localhost:8080/`는 `frontend/index.html`을 반환하고, 같은 호스트에서 `ai.html`, `edc.html`, `css/app.css`, `js/*.js`도 제공합니다(한 포트만 쓸 때).
 
 ## 전체 아키텍처 흐름
 
@@ -28,7 +28,7 @@ python3 -m http.server 3000 --bind 127.0.0.1
 flowchart TD
     subgraph UI["UI Layer"]
         B[Browser]
-        FE[frontend/index.html<br/>Dashboard + AI Assistant]
+        FE[frontend/*.html + css/js<br/>Dashboard / AI / EDC]
         B -->|GET /| FE
     end
 
@@ -82,7 +82,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Q[사용자 질문 입력] --> FE2[frontend/index.html<br/>AI Assistant]
+    Q[사용자 질문 입력] --> FE2[frontend/ai.html<br/>AI Assistant]
     FE2 --> H1[chat history load/save<br/>localStorage]
     FE2 -->|POST /api/v1/ai/chat<br/>stream=true| API2[server/http_handler.py]
     API2 --> AG3[apps/ai_agent.py]
@@ -111,8 +111,10 @@ EDC 등록 시 생성되는 구조는 `EDCAsset` → `EDCPolicy` 2개(access/con
 
 ## 주요 기능
 
-- `frontend/index.html`: 운영 대시보드, 차트, AI 어시스턴트 화면
-- `frontend/index.html`: AI 채팅 히스토리(localStorage, 최대 100개) 저장/복원
+- `frontend/index.html`: 운영 대시보드·차트 (`js/dashboard.js`)
+- `frontend/ai.html`: AI 어시스턴트·채팅 히스토리(localStorage, 최대 100개) (`js/ai.js`)
+- `frontend/edc.html`: EDC·파이프라인 안내
+- `frontend/css/app.css`, `frontend/js/nav.js`: 공통 스타일·드로어 메뉴
 - `server/app.py`: 서버 실행 진입점
 - `server/http_handler.py`: HTTP 라우팅, API 응답
 - `server/telemetry_store.py`: 텔레메트리 검증, 저장, 조회, KPI/시계열 집계
