@@ -1,7 +1,8 @@
 # Catena-X Cobot Data Space
 
 협동로봇 텔레메트리를 수집하고, 대시보드/AI 질의응답/AAS-EDC 파이프라인으로 확인하는 데모 프로젝트입니다.
-<img width="1437" height="2323" alt="스크린샷 2026-04-20 183855" src="https://github.com/user-attachments/assets/12c33ed4-a03e-4d07-9b6f-c9b8b220e388" />
+<img width="1419" height="1916" alt="image" src="https://github.com/user-attachments/assets/4e54c5c4-0a51-4dad-b1c7-921d4e0ee92c" />
+
 
 <img width="1411" height="1103" alt="스크린샷 2026-04-20 180654" src="https://github.com/user-attachments/assets/1c678fc0-c597-473b-8493-52e4002fb2c4" />
 
