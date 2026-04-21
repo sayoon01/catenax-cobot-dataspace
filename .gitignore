@@ -2,3 +2,5 @@ __pycache__/
 *.py[cod]
 *.pyc
 .Python
+server/data/edc_history.json
+server/data/edc_history/

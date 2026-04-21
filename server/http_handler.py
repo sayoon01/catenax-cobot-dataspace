@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -43,9 +44,11 @@ from telemetry_store import (
     validate_telemetry,
 )
 
-EDC_HISTORY_FILE = DATA_DIR / "edc_history.json"
+EDC_HISTORY_DIR = DATA_DIR / "edc_history"
+EDC_HISTORY_LEGACY_FILE = DATA_DIR / "edc_history.json"
 EDC_HISTORY_LOCK = Lock()
 EDC_HISTORY_LIMIT = 100
+EDC_HISTORY_DEFAULT_RETENTION_DAYS = 30
 
 
 class TelemetryHandler(BaseHTTPRequestHandler):
@@ -492,39 +495,61 @@ class TelemetryHandler(BaseHTTPRequestHandler):
             "readiness": readiness,
         }
 
-    def _read_edc_history(self, limit: int = EDC_HISTORY_LIMIT) -> list[Dict[str, Any]]:
-        if not EDC_HISTORY_FILE.exists():
-            return []
+    def _history_file_for_record(self, record: Dict[str, Any]) -> Path:
+        raw = str(record.get("at") or utc_now())
+        day = raw[:10] if len(raw) >= 10 else utc_now()[:10]
+        if not day[:4].isdigit() or day[4:5] != "-" or day[7:8] != "-":
+            day = utc_now()[:10]
+        return EDC_HISTORY_DIR / f"{day}.json"
+
+    def _read_history_file(self, path: Path) -> list[Dict[str, Any]]:
         try:
-            parsed = json.loads(EDC_HISTORY_FILE.read_text(encoding="utf-8"))
+            parsed = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return []
         if not isinstance(parsed, list):
             return []
-        return [item for item in parsed if isinstance(item, dict)][:limit]
+        return [item for item in parsed if isinstance(item, dict)]
+
+    def _history_files(self) -> list[Path]:
+        files = sorted(EDC_HISTORY_DIR.glob("*.json"), reverse=True) if EDC_HISTORY_DIR.exists() else []
+        if EDC_HISTORY_LEGACY_FILE.exists():
+            files.append(EDC_HISTORY_LEGACY_FILE)
+        return files
+
+    def _read_edc_history(self, limit: int = EDC_HISTORY_LIMIT) -> list[Dict[str, Any]]:
+        items: list[Dict[str, Any]] = []
+        for path in self._history_files():
+            items.extend(self._read_history_file(path))
+            if len(items) >= limit * 2:
+                break
+        items.sort(key=lambda item: str(item.get("at", "")), reverse=True)
+        return items[:limit]
 
     def _write_edc_history(self, items: list[Dict[str, Any]]) -> None:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
         with EDC_HISTORY_LOCK:
-            EDC_HISTORY_FILE.write_text(
-                json.dumps(items[:EDC_HISTORY_LIMIT], indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            EDC_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+            for path in self._history_files():
+                try:
+                    path.unlink()
+                except OSError:
+                    LOGGER.warning("Failed to remove EDC history file: %s", path)
+            grouped: Dict[str, list[Dict[str, Any]]] = {}
+            for item in items[:EDC_HISTORY_LIMIT]:
+                path = self._history_file_for_record(item)
+                grouped.setdefault(path.name, []).append(item)
+            for filename, rows in grouped.items():
+                path = EDC_HISTORY_DIR / filename
+                path.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _append_edc_history(self, record: Dict[str, Any]) -> None:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
         with EDC_HISTORY_LOCK:
-            try:
-                parsed = json.loads(EDC_HISTORY_FILE.read_text(encoding="utf-8")) if EDC_HISTORY_FILE.exists() else []
-            except (OSError, json.JSONDecodeError):
-                parsed = []
-            if not isinstance(parsed, list):
-                parsed = []
-            parsed.insert(0, record)
-            EDC_HISTORY_FILE.write_text(
-                json.dumps(parsed[:EDC_HISTORY_LIMIT], indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            EDC_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+            path = self._history_file_for_record(record)
+            rows = self._read_history_file(path)
+            rows.insert(0, record)
+            rows.sort(key=lambda item: str(item.get("at", "")), reverse=True)
+            path.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _edc_history_record(
         self,
