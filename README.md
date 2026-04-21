@@ -4,7 +4,8 @@
 <img width="1419" height="1916" alt="image" src="https://github.com/user-attachments/assets/4e54c5c4-0a51-4dad-b1c7-921d4e0ee92c" />
 
 
-<img width="1411" height="1103" alt="스크린샷 2026-04-20 180654" src="https://github.com/user-attachments/assets/1c678fc0-c597-473b-8493-52e4002fb2c4" />
+<img width="1412" height="2076" alt="image" src="https://github.com/user-attachments/assets/2e1666b4-7d11-4d1c-ae01-a0bc5b4a5c94" />
+
 
 ## 실행
 
